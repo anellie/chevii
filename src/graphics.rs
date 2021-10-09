@@ -1,5 +1,5 @@
 use arrayvec::ArrayVec;
-use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES, MoveGen, BitBoard, ChessMove, Square};
+use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES, MoveGen, ChessMove, Square};
 use tetra::graphics::mesh::{GeometryBuilder, Mesh, ShapeStyle};
 use tetra::graphics::{Color, DrawParams, Rectangle, Texture};
 use tetra::input::MouseButton;
@@ -121,8 +121,15 @@ impl State for System {
             mesh.draw(ctx, DrawParams::new().color(Color::BLUE.with_alpha(0.6)));
         }
 
-        // Draw pieces
+        // Draw red king if in check
         let board = self.game.current_position();
+        if board.checkers().0 != 0 {
+            let square = board.king_square(board.side_to_move()).to_index();
+            let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(square))?;
+            mesh.draw(ctx, DrawParams::new().color(Color::RED.with_alpha(0.6)));
+        }
+
+        // Draw pieces
         for square in ALL_SQUARES {
             let piece = board.piece_on(square);
             if let Some(piece) = piece {
