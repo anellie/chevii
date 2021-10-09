@@ -5,7 +5,7 @@ use rayon::prelude::*;
 const PLAYER: Color = Color::Black;
 const OPPONENT: Color = Color::White;
 
-const DEPTH: usize = 4;
+const DEPTH: usize = 5;
 
 pub fn get_best_move(board: &Board) -> ChessMove {
     let mut gen = MoveGen::new_legal(board);
@@ -22,7 +22,7 @@ fn minimax(board: &Board, depth: usize, mut alpha: isize, mut beta: isize) -> (i
         return (eval_board(board), None);
     }
     if board.status() == BoardStatus::Checkmate {
-        return if board.side_to_move() == PLAYER { (-999999, None) } else { (999999, None) };
+        return if board.side_to_move() == PLAYER { (999999, None) } else { (-999999, None) };
     }
 
     let mut gen = MoveGen::new_legal(board);
@@ -34,11 +34,6 @@ fn minimax(board: &Board, depth: usize, mut alpha: isize, mut beta: isize) -> (i
         for mov in gen {
             board.make_move(mov, &mut tmp);
             let (score, _) = minimax(&tmp, depth - 1, alpha, beta);
-
-            alpha = isize::max(alpha, score);
-            if beta <= alpha {
-                break;
-            }
 
             if score >= max {
                 max = score;
@@ -54,11 +49,6 @@ fn minimax(board: &Board, depth: usize, mut alpha: isize, mut beta: isize) -> (i
         for mov in gen {
             board.make_move(mov, &mut tmp);
             let (score, _) = minimax(&tmp, depth - 1, alpha, beta);
-
-            beta = isize::min(beta, score);
-            if beta <= alpha {
-                break;
-            }
 
             if score <= min {
                 min = score;
@@ -90,7 +80,7 @@ const PIECE_VALUE: [u32; NUM_PIECES] = [
     3,
     3,
     5,
-    8,
+    9,
     9999,
 ];
 
