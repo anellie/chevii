@@ -5,6 +5,7 @@ use tetra::graphics::{Color, DrawParams, Rectangle, Texture};
 use tetra::input::MouseButton;
 use tetra::math::Vec2;
 use tetra::{graphics, input, Context, ContextBuilder, Event, State};
+use crate::minimax;
 
 pub const SCALE: f32 = 90.0;
 const SCALE_US: usize = SCALE as usize;
@@ -19,6 +20,7 @@ pub struct System {
     pieces: [Texture; 12],
     selected_square_idx: Option<usize>,
     draw_for: usize,
+    moves_count: usize
 }
 
 impl System {
@@ -34,6 +36,7 @@ impl System {
                     pieces: Self::make_textures(&mut ctx),
                     selected_square_idx: None,
                     draw_for: 5,
+                    moves_count: 0
                 })
             })
             .unwrap()
@@ -68,10 +71,19 @@ impl System {
 
             Some(prev_square) => {
                 let move_ = ChessMove::new(sq(prev_square), sq(square), None);
-                if board.legal(move_) {
-                    self.game.make_move(move_);
-                    self.selected_square_idx = None;
-                }
+                let move_promote = ChessMove::new(sq(prev_square), sq(square), Some(Piece::Queen));
+
+                let mut make_move = |m: ChessMove| {
+                    if board.legal(m) {
+                        self.game.make_move(m);
+                        self.make_ai_move();
+                        self.selected_square_idx = None;
+                        self.moves_count += 1;
+                    }
+                };
+
+                make_move(move_);
+                make_move(move_promote);
             },
 
             _ => (),
@@ -84,6 +96,15 @@ impl System {
 
     fn possible_moves(&mut self) -> MoveGen {
         MoveGen::new_legal(&self.game.current_position())
+    }
+
+    fn make_ai_move(&mut self) {
+        let to_make = if self.moves_count == 0 {
+            ChessMove::new(sq(52), sq(36), None)
+        } else {
+            minimax::get_best_move(&self.game.current_position())
+        };
+        self.game.make_move(to_make);
     }
 }
 
