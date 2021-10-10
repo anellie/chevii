@@ -1,17 +1,16 @@
-use chess::{Board, ChessMove, Square, Error};
-use std::process::{Command, Stdio, Child, ChildStdin, ChildStdout};
-use std::io::{Write, Read};
+use chess::{Board, ChessMove, Square};
 use std::ffi::CStr;
+use std::io::{Read, Write};
+use std::process::{ChildStdin, ChildStdout, Command, Stdio};
+use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
-use std::str::FromStr;
 
 const PONDER_TIME: u64 = 500;
 
 pub struct UCIEngine {
-    child: Child,
     stdin: ChildStdin,
-    stdout: ChildStdout
+    stdout: ChildStdout,
 }
 
 impl UCIEngine {
@@ -25,7 +24,6 @@ impl UCIEngine {
         let mut engine = Self {
             stdin: sf.stdin.take().unwrap(),
             stdout: sf.stdout.take().unwrap(),
-            child: sf
         };
 
         engine.init();
@@ -85,8 +83,8 @@ impl UCIEngine {
         match ChessMove::from_san(board, move_san) {
             Ok(mov) => mov,
 
-            Err(_) => { // Sometimes the SAN parser does not enjoy Stockfish output
-                // rust pls
+            Err(_) => {
+                // Sometimes the SAN parser does not enjoy Stockfish output
                 let src_idx = move_san.find::<&[char]>(&NUMS).unwrap() - 1;
                 let dest_idx = move_san.rfind::<&[char]>(&NUMS).unwrap() - 1;
 

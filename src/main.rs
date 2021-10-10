@@ -1,14 +1,16 @@
-use chess::{Game, ChessMove, Piece, MoveGen, Square, ALL_SQUARES};
 use crate::graphics::Graphics;
 use crate::uci_engine::UCIEngine;
+use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES};
 use std::env;
 
+pub mod ai;
 mod graphics;
-pub mod minimax;
 mod uci_engine;
 
 fn main() {
-    let other_engine = env::args().find(|s| s == "--stockfish").map(|_| UCIEngine::new_stockfish());
+    let other_engine = env::args()
+        .find(|s| s == "--stockfish")
+        .map(|_| UCIEngine::new_stockfish());
     let game = Game::new();
     System::start(game, other_engine);
 }
@@ -17,7 +19,7 @@ pub struct System {
     pub game: Game,
     pub gui: Graphics,
     pub info: GameInfo,
-    pub other_engine: Option<UCIEngine>
+    pub other_engine: Option<UCIEngine>,
 }
 
 impl System {
@@ -28,7 +30,7 @@ impl System {
             Some(prev_square) if prev_square == square => {
                 self.info.selected_square = None;
                 return;
-            },
+            }
 
             Some(prev_square) => {
                 let move_ = ChessMove::new(sq(prev_square), sq(square), None);
@@ -45,7 +47,7 @@ impl System {
 
                 make_move(move_);
                 make_move(move_promote);
-            },
+            }
 
             _ => (),
         }
@@ -64,7 +66,7 @@ impl System {
             // E5 as opening
             ChessMove::new(sq(52), sq(36), None)
         } else {
-            minimax::get_best_move(&self.game.current_position())
+            ai::get_best_move(&self.game.current_position())
         };
         self.game.make_move(to_make);
         self.info.last_move = Some(to_make);
@@ -76,7 +78,7 @@ impl System {
 pub struct GameInfo {
     pub last_move: Option<ChessMove>,
     pub moves_count: usize,
-    pub selected_square: Option<usize>
+    pub selected_square: Option<usize>,
 }
 
 fn sq(idx: usize) -> Square {

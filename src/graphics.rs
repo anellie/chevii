@@ -1,14 +1,14 @@
+use crate::uci_engine::UCIEngine;
+use crate::{GameInfo, System};
 use arrayvec::ArrayVec;
-use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES, BoardStatus};
+use chess::{BoardStatus, Game, Piece, ALL_PIECES, ALL_SQUARES};
+use std::thread;
+use std::time::Duration;
 use tetra::graphics::mesh::{GeometryBuilder, Mesh, ShapeStyle};
 use tetra::graphics::{Color, DrawParams, Rectangle, Texture};
 use tetra::input::MouseButton;
 use tetra::math::Vec2;
 use tetra::{graphics, input, Context, ContextBuilder, Event, State};
-use crate::{System, GameInfo};
-use std::thread;
-use std::time::Duration;
-use crate::uci_engine::UCIEngine;
 
 pub const SCALE: f32 = 90.0;
 const SCALE_US: usize = SCALE as usize;
@@ -40,7 +40,7 @@ impl System {
                         draw_for: 5,
                     },
                     info: GameInfo::default(),
-                    other_engine
+                    other_engine,
                 })
             })
             .unwrap()
@@ -54,7 +54,8 @@ impl System {
 
 impl State for System {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        if self.gui.draw_for == 0 && self.game.current_position().status() != BoardStatus::Checkmate {
+        if self.gui.draw_for == 0 && self.game.current_position().status() != BoardStatus::Checkmate
+        {
             if let Some(engine) = &mut self.other_engine {
                 thread::sleep(Duration::from_millis(1000));
 
@@ -86,9 +87,17 @@ impl State for System {
 
         // Draw last move
         if let Some(mov) = self.info.last_move {
-            let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(mov.get_source().to_index()))?;
+            let mesh = Mesh::rectangle(
+                ctx,
+                ShapeStyle::Fill,
+                rect_from_square(mov.get_source().to_index()),
+            )?;
             mesh.draw(ctx, DrawParams::new().color(LAST_MOVE_COLOR));
-            let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(mov.get_dest().to_index()))?;
+            let mesh = Mesh::rectangle(
+                ctx,
+                ShapeStyle::Fill,
+                rect_from_square(mov.get_dest().to_index()),
+            )?;
             mesh.draw(ctx, DrawParams::new().color(LAST_MOVE_COLOR));
         }
 
@@ -99,7 +108,10 @@ impl State for System {
 
             // Draw possible moves
             let mut builder = GeometryBuilder::new();
-            for mov in self.possible_moves().filter(|mov| mov.get_source().to_index() == square) {
+            for mov in self
+                .possible_moves()
+                .filter(|mov| mov.get_source().to_index() == square)
+            {
                 let idx = mov.get_dest().to_index();
                 builder.circle(ShapeStyle::Fill, circle_from_square(idx), SCALE / 7.0)?;
             }
@@ -111,7 +123,12 @@ impl State for System {
         let board = self.game.current_position();
         if board.checkers().0 != 0 {
             let square = board.king_square(board.side_to_move()).to_index();
-            let mesh = Mesh::circle(ctx, ShapeStyle::Fill, circle_from_square(square), SCALE / 2.5)?;
+            let mesh = Mesh::circle(
+                ctx,
+                ShapeStyle::Fill,
+                circle_from_square(square),
+                SCALE / 2.5,
+            )?;
             mesh.draw(ctx, DrawParams::new().color(Color::RED.with_alpha(0.6)));
         }
 
