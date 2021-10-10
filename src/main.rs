@@ -1,18 +1,23 @@
 use chess::{Game, ChessMove, Piece, MoveGen, Square, ALL_SQUARES};
 use crate::graphics::Graphics;
+use crate::uci_engine::UCIEngine;
+use std::env;
 
 mod graphics;
 pub mod minimax;
+mod uci_engine;
 
 fn main() {
+    let other_engine = env::args().find(|s| s == "--stockfish").map(|_| UCIEngine::new_stockfish());
     let game = Game::new();
-    System::start(game);
+    System::start(game, other_engine);
 }
 
 pub struct System {
     pub game: Game,
     pub gui: Graphics,
-    pub info: GameInfo
+    pub info: GameInfo,
+    pub other_engine: Option<UCIEngine>
 }
 
 impl System {

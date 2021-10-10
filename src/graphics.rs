@@ -1,11 +1,14 @@
 use arrayvec::ArrayVec;
-use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES};
+use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES, BoardStatus};
 use tetra::graphics::mesh::{GeometryBuilder, Mesh, ShapeStyle};
 use tetra::graphics::{Color, DrawParams, Rectangle, Texture};
 use tetra::input::MouseButton;
 use tetra::math::Vec2;
 use tetra::{graphics, input, Context, ContextBuilder, Event, State};
 use crate::{System, GameInfo};
+use std::thread;
+use std::time::Duration;
+use crate::uci_engine::UCIEngine;
 
 pub const SCALE: f32 = 90.0;
 const SCALE_US: usize = SCALE as usize;
@@ -23,7 +26,7 @@ pub struct Graphics {
 }
 
 impl System {
-    pub fn start(game: Game) {
+    pub fn start(game: Game, other_engine: Option<UCIEngine>) {
         ContextBuilder::new("chessie", (8.0 * SCALE) as i32, (8.0 * SCALE) as i32)
             .quit_on_escape(true)
             .show_mouse(true)
@@ -36,7 +39,8 @@ impl System {
                         pieces: make_textures(&mut ctx),
                         draw_for: 5,
                     },
-                    info: GameInfo::default()
+                    info: GameInfo::default(),
+                    other_engine
                 })
             })
             .unwrap()
@@ -50,7 +54,20 @@ impl System {
 
 impl State for System {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        if self.gui.draw_for == 0 {
+        if self.gui.draw_for == 0 && self.game.current_position().status() != BoardStatus::Checkmate {
+            if let Some(engine) = &mut self.other_engine {
+                thread::sleep(Duration::from_millis(1000));
+
+                if self.game.side_to_move() == chess::Color::Black {
+                    self.make_ai_move();
+                } else {
+                    let mov = engine.ponder_best_move(&self.game.current_position());
+                    self.info.last_move = Some(mov);
+                    self.game.make_move(mov);
+                }
+
+                self.gui.draw_for = 5;
+            }
             return Ok(());
         }
 
