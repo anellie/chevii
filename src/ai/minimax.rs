@@ -6,19 +6,24 @@ const DEPTH: usize = 6;
 const ENDGAME_DEPTH: usize = 8;
 const ENDGAME_THRESH: u32 = 10;
 
+const INF: isize = 999999999999;
+const WIN: isize = 99999999;
+
 pub fn get_best_move(board: &Board) -> ChessMove {
-    let moves = MoveGen::new_legal(board).collect::<Vec<_>>();
+    let mut moves = MoveGen::new_legal(board).collect::<Vec<_>>();
     let depth = get_depth(board);
 
-    moves
+    let res = moves
         .into_par_iter()
         .map(|mov| {
             let clone = board.make_move_new(mov);
-            (minimax(&clone, depth - 1, -99999, 99999), mov)
+            (minimax(&clone, depth - 1, -INF, INF), mov)
         })
         .max_by_key(|(score, _)| *score)
-        .unwrap()
-        .1
+        .unwrap();
+    println!("SELECTED MOVE: {} has score {} and evaluation {}, expecting {}", res.1, (res.0).0, evaluation::eval_move(board, res.1), (res.0).1.unwrap());
+
+    res.1
 }
 
 fn get_depth(board: &Board) -> usize {
@@ -38,9 +43,9 @@ fn minimax(
     mut beta: isize,
 ) -> (isize, Option<ChessMove>) {
     match board.status() {
-        BoardStatus::Checkmate if board.side_to_move() == PLAYER => return (-999999, None),
-        BoardStatus::Checkmate => return (999999, None),
-        BoardStatus::Stalemate => return (-500000, None),
+        BoardStatus::Checkmate if board.side_to_move() == PLAYER => return (-WIN, None),
+        BoardStatus::Checkmate => return (WIN, None),
+        BoardStatus::Stalemate => return (-WIN / 2, None),
         BoardStatus::Ongoing if depth == 0 => return (evaluation::eval_board(board), None),
         _ => (),
     }
@@ -48,7 +53,7 @@ fn minimax(
     let gen = MoveGen::new_legal(board);
     let mut tmp = board.clone();
     if board.side_to_move() == PLAYER {
-        let mut max_score = -99999;
+        let mut max_score = -INF;
         let mut best_move = ChessMove::default();
 
         for mov in gen {
@@ -57,7 +62,6 @@ fn minimax(
 
             max_score = isize::max(max_score, score);
             alpha = isize::max(alpha, max_score);
-
             if beta <= alpha {
                 break;
             }
@@ -70,7 +74,7 @@ fn minimax(
 
         (max_score, Some(best_move))
     } else {
-        let mut min_score = 99999;
+        let mut min_score = INF;
         let mut best_move = ChessMove::default();
 
         for mov in gen {
@@ -79,7 +83,6 @@ fn minimax(
 
             min_score = isize::min(min_score, score);
             beta = isize::min(beta, min_score);
-
             if beta <= alpha {
                 break;
             }

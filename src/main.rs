@@ -1,3 +1,7 @@
+#![feature(test)]
+
+extern crate test;
+
 use crate::graphics::Graphics;
 use crate::uci_engine::UCIEngine;
 use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES};
