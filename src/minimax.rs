@@ -1,5 +1,5 @@
 use chess::{Board, ChessMove, ALL_PIECES, NUM_PIECES, Color, MoveGen, BoardStatus};
-use std::ops::{BitXor, BitAnd};
+use std::ops::BitAnd;
 use rayon::prelude::*;
 
 const PLAYER: Color = Color::Black;
@@ -8,13 +8,11 @@ const OPPONENT: Color = Color::White;
 const DEPTH: usize = 5;
 
 pub fn get_best_move(board: &Board) -> ChessMove {
-    let mut gen = MoveGen::new_legal(board);
-    let moves = gen.collect::<Vec<_>>();
-
-    dbg!(moves.into_par_iter().map(|mov| {
+    let moves = MoveGen::new_legal(board).collect::<Vec<_>>();
+    moves.into_par_iter().map(|mov| {
         let clone = board.make_move_new(mov);
         (minimax(&clone, DEPTH - 1, -99999, 99999), mov)
-    }).max_by_key(|(score, _)| *score).unwrap()).1
+    }).max_by_key(|(score, _)| *score).unwrap().1
 }
 
 fn minimax(board: &Board, depth: usize, mut alpha: isize, mut beta: isize) -> (isize, Option<ChessMove>) {
@@ -25,7 +23,7 @@ fn minimax(board: &Board, depth: usize, mut alpha: isize, mut beta: isize) -> (i
         return if board.side_to_move() == PLAYER { (999999, None) } else { (-999999, None) };
     }
 
-    let mut gen = MoveGen::new_legal(board);
+    let gen = MoveGen::new_legal(board);
     let mut tmp = board.clone();
     if board.side_to_move() == PLAYER {
         let mut max = -99999;
@@ -84,6 +82,7 @@ const PIECE_VALUE: [u32; NUM_PIECES] = [
     9999,
 ];
 
+#[cfg(test)]
 mod tests {
     use chess::Board;
     use crate::minimax::eval_board;
@@ -94,26 +93,3 @@ mod tests {
         assert_eq!(eval_board(&board), 0);
     }
 }
-
-
-
-
-/*
-
-fn find_best(board: &Board, multi: usize) -> ChessMove {
-    let gen = MoveGen::new_legal(&board);
-    let mut tmp = board.clone();
-
-    let mut best_move = ChessMove::default();
-    let mut best_value = -999;
-    for mov in gen {
-        board.make_move(mov, &mut tmp);
-        let value = eval_board(&tmp) * multi;
-        if value > best_value {
-            best_move = mov;
-            best_value = value;
-        }
-    }
-
-    best_move
-}*/

@@ -1,11 +1,11 @@
 use arrayvec::ArrayVec;
-use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES, MoveGen, ChessMove, Square};
+use chess::{Game, Piece, ALL_PIECES, ALL_SQUARES};
 use tetra::graphics::mesh::{GeometryBuilder, Mesh, ShapeStyle};
 use tetra::graphics::{Color, DrawParams, Rectangle, Texture};
 use tetra::input::MouseButton;
 use tetra::math::Vec2;
 use tetra::{graphics, input, Context, ContextBuilder, Event, State};
-use crate::minimax;
+use crate::{System, GameInfo};
 
 pub const SCALE: f32 = 90.0;
 const SCALE_US: usize = SCALE as usize;
@@ -14,13 +14,12 @@ const TEX_SCALE: f32 = SCALE / TEX_SIZE;
 
 const DARK_BG_COLOR: Color = Color::rgb(94.0 / 255.0, 118.0 / 255.0, 136.0 / 255.0);
 const LIGHT_BG_COLOR: Color = Color::rgb(135.0 / 255.0, 162.0 / 255.0, 183.0 / 255.0);
+const SELECT_COLOR: Color = Color::rgb(76.0 / 255.0, 123.0 / 255.0, 105.0 / 255.0);
+const LAST_MOVE_COLOR: Color = Color::rgb(143.0 / 255.0, 178.0 / 255.0, 108.0 / 255.0);
 
-pub struct System {
-    pub game: Game,
+pub struct Graphics {
     pieces: [Texture; 12],
-    selected_square_idx: Option<usize>,
     draw_for: usize,
-    moves_count: usize
 }
 
 impl System {
@@ -33,84 +32,25 @@ impl System {
             .run(|mut ctx| {
                 Ok(Self {
                     game,
-                    pieces: Self::make_textures(&mut ctx),
-                    selected_square_idx: None,
-                    draw_for: 5,
-                    moves_count: 0
+                    gui: Graphics {
+                        pieces: make_textures(&mut ctx),
+                        draw_for: 5,
+                    },
+                    info: GameInfo::default()
                 })
             })
             .unwrap()
     }
 
-    fn make_textures(ctx: &mut Context) -> [Texture; 12] {
-        let mut textures = ArrayVec::new();
-        let mut load = |color: chess::Color| {
-            for piece in ALL_PIECES {
-                let name = format!("./resources/pieces/{}.png", piece.to_string(color));
-                textures.push(Texture::new(ctx, name).unwrap());
-            }
-        };
-        load(chess::Color::White);
-        load(chess::Color::Black);
-        textures.into_inner().unwrap()
-    }
-
     fn get_piece(&self, color: chess::Color, piece: Piece) -> &Texture {
         let idx = piece.to_index() + color.to_index() * 6;
-        &self.pieces[idx]
-    }
-
-    fn square_clicked(&mut self, square: usize) {
-        let board = self.game.current_position();
-
-        match self.selected_square_idx {
-            Some(prev_square) if prev_square == square => {
-                self.selected_square_idx = None;
-                return;
-            },
-
-            Some(prev_square) => {
-                let move_ = ChessMove::new(sq(prev_square), sq(square), None);
-                let move_promote = ChessMove::new(sq(prev_square), sq(square), Some(Piece::Queen));
-
-                let mut make_move = |m: ChessMove| {
-                    if board.legal(m) {
-                        self.game.make_move(m);
-                        self.make_ai_move();
-                        self.selected_square_idx = None;
-                        self.moves_count += 1;
-                    }
-                };
-
-                make_move(move_);
-                make_move(move_promote);
-            },
-
-            _ => (),
-        }
-
-        if board.color_on(sq(square)) == Some(board.side_to_move()) {
-            self.selected_square_idx = Some(square);
-        }
-    }
-
-    fn possible_moves(&mut self) -> MoveGen {
-        MoveGen::new_legal(&self.game.current_position())
-    }
-
-    fn make_ai_move(&mut self) {
-        let to_make = if self.moves_count == 0 {
-            ChessMove::new(sq(52), sq(36), None)
-        } else {
-            minimax::get_best_move(&self.game.current_position())
-        };
-        self.game.make_move(to_make);
+        &self.gui.pieces[idx]
     }
 }
 
 impl State for System {
     fn draw(&mut self, ctx: &mut Context) -> tetra::Result {
-        if self.draw_for == 0 {
+        if self.gui.draw_for == 0 {
             return Ok(());
         }
 
@@ -120,33 +60,41 @@ impl State for System {
         let mut builder = GeometryBuilder::new();
         for idx in 0..64 {
             let y = idx / 8;
-            if (idx % 2) == (y % 2) {
+            if (idx % 2) != (y % 2) {
                 builder.rectangle(ShapeStyle::Fill, rect_from_square(idx))?;
             }
         }
         let mesh = builder.build_mesh(ctx)?;
         mesh.draw(ctx, DrawParams::new().color(LIGHT_BG_COLOR));
 
+        // Draw last move
+        if let Some(mov) = self.info.last_move {
+            let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(mov.get_source().to_index()))?;
+            mesh.draw(ctx, DrawParams::new().color(LAST_MOVE_COLOR));
+            let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(mov.get_dest().to_index()))?;
+            mesh.draw(ctx, DrawParams::new().color(LAST_MOVE_COLOR));
+        }
+
         // Draw selection
-        if let Some(square) = self.selected_square_idx {
+        if let Some(square) = self.info.selected_square {
             let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(square))?;
-            mesh.draw(ctx, DrawParams::new().color(Color::GREEN.with_alpha(0.6)));
+            mesh.draw(ctx, DrawParams::new().color(SELECT_COLOR));
 
             // Draw possible moves
             let mut builder = GeometryBuilder::new();
             for mov in self.possible_moves().filter(|mov| mov.get_source().to_index() == square) {
                 let idx = mov.get_dest().to_index();
-                builder.rectangle(ShapeStyle::Fill, rect_from_square(idx))?;
+                builder.circle(ShapeStyle::Fill, circle_from_square(idx), SCALE / 7.0)?;
             }
             let mesh = builder.build_mesh(ctx)?;
-            mesh.draw(ctx, DrawParams::new().color(Color::BLUE.with_alpha(0.6)));
+            mesh.draw(ctx, DrawParams::new().color(SELECT_COLOR));
         }
 
         // Draw red king if in check
         let board = self.game.current_position();
         if board.checkers().0 != 0 {
             let square = board.king_square(board.side_to_move()).to_index();
-            let mesh = Mesh::rectangle(ctx, ShapeStyle::Fill, rect_from_square(square))?;
+            let mesh = Mesh::circle(ctx, ShapeStyle::Fill, circle_from_square(square), SCALE / 2.5)?;
             mesh.draw(ctx, DrawParams::new().color(Color::RED.with_alpha(0.6)));
         }
 
@@ -164,7 +112,7 @@ impl State for System {
             }
         }
 
-        self.draw_for -= 1;
+        self.gui.draw_for -= 1;
         Ok(())
     }
 
@@ -179,9 +127,22 @@ impl State for System {
             self.square_clicked(square);
         }
 
-        self.draw_for = 5;
+        self.gui.draw_for = 5;
         Ok(())
     }
+}
+
+fn make_textures(ctx: &mut Context) -> [Texture; 12] {
+    let mut textures = ArrayVec::new();
+    let mut load = |color: chess::Color| {
+        for piece in ALL_PIECES {
+            let name = format!("./resources/pieces/{}.png", piece.to_string(color));
+            textures.push(Texture::new(ctx, name).unwrap());
+        }
+    };
+    load(chess::Color::White);
+    load(chess::Color::Black);
+    textures.into_inner().unwrap()
 }
 
 fn pos_from_square(square: usize) -> Vec2<f32> {
@@ -196,6 +157,6 @@ fn rect_from_square(square: usize) -> Rectangle {
     Rectangle::new(x as f32 * SCALE, y as f32 * SCALE, SCALE, SCALE)
 }
 
-fn sq(idx: usize) -> Square {
-    ALL_SQUARES[idx]
+fn circle_from_square(square: usize) -> Vec2<f32> {
+    pos_from_square(square) + (SCALE / 2.0)
 }
