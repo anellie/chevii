@@ -15,8 +15,18 @@ fn main() {
     let other_engine = env::args()
         .find(|s| s == "--stockfish")
         .map(|_| UCIEngine::new_stockfish());
-    let game = Game::new();
-    System::start(game, other_engine);
+    let mut game = Game::new();
+
+    let bench = env::args().find(|s| s == "--bench").is_some();
+    if bench {
+        game.make_move(ChessMove::new(sq(12), sq(28), None)); // e2e4
+        game.make_move(ChessMove::new(sq(52), sq(36), None)); // e7e5
+        game.make_move(ChessMove::new(sq(6), sq(21), None)); // Ng1f5
+        let board = game.current_position();
+        ai::get_best_move(&board);
+    } else {
+        System::start(game, other_engine);
+    }
 }
 
 pub struct System {

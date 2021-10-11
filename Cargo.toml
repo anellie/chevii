@@ -13,4 +13,6 @@ rayon = "1.5.1"
 tetra = "0.6.5"
 
 [profile.release]
+lto = true
+panic = "abort"
 debug = true

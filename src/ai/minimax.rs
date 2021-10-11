@@ -10,7 +10,7 @@ const INF: isize = 999999999999;
 const WIN: isize = 99999999;
 
 pub fn get_best_move(board: &Board) -> ChessMove {
-    let mut moves = MoveGen::new_legal(board).collect::<Vec<_>>();
+    let moves = evaluation::sorted_moves(board);
     let depth = get_depth(board);
 
     let res = moves
@@ -50,13 +50,13 @@ fn minimax(
         _ => (),
     }
 
-    let gen = MoveGen::new_legal(board);
+    let moves = evaluation::sorted_moves(board);
     let mut tmp = board.clone();
     if board.side_to_move() == PLAYER {
         let mut max_score = -INF;
         let mut best_move = ChessMove::default();
 
-        for mov in gen {
+        for mov in moves {
             board.make_move(mov, &mut tmp);
             let (score, _) = minimax(&tmp, depth - 1, alpha, beta);
 
@@ -77,7 +77,7 @@ fn minimax(
         let mut min_score = INF;
         let mut best_move = ChessMove::default();
 
-        for mov in gen {
+        for mov in moves {
             board.make_move(mov, &mut tmp);
             let (score, _) = minimax(&tmp, depth - 1, alpha, beta);
 

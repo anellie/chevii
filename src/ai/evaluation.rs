@@ -1,5 +1,6 @@
 use crate::ai::{OPPONENT, PLAYER, PLAYER_PAWN_RANK_BITS, PLAYER_BACK_RANK};
-use chess::{Board, ALL_PIECES, NUM_PIECES, ChessMove, Piece, MoveGen, BitBoard};
+use chess::{Board, ALL_PIECES, NUM_PIECES, ChessMove, Piece, MoveGen, BitBoard, BoardStatus};
+use rayon::prelude::ParallelSliceMut;
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
 
@@ -16,6 +17,13 @@ pub(super) fn eval_board(board: &Board) -> isize {
     }
 
     total
+}
+
+pub(super) fn sorted_moves(board: &Board) -> Vec<ChessMove> {
+    let gen = MoveGen::new_legal(board);
+    let mut moves = gen.collect::<Vec<_>>();
+    moves.par_sort_unstable_by_key(|mov| -eval_move(board, *mov));
+    moves
 }
 
 pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
@@ -37,7 +45,9 @@ pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
     let is_early_game = undeveloped_pawns_count >= 6;
     // Prioritize developing pawns earlygame
     if is_early_game && moving_piece == Piece::Pawn {
-        value += 50;
+        let file = cmove.get_source().get_file().to_index();
+        // Middle pawns first
+        value += (8 - isize::abs((file - 4) as isize)) * 20;
     }
 
     // Penalize moving a piece to the back rank to prevent 'undeveloping' pieces during earlygame
@@ -50,16 +60,10 @@ pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
         value -= 25;
     }
 
-    // Penalize exposing the moving piece to an enemy attack
-    let post_board = board.make_move_new(cmove);
-    let mut oppo_moves = MoveGen::new_legal(&post_board);
-    oppo_moves.set_iterator_mask(BitBoard::from_square(cmove.get_dest()));
-    value -= piece_value(moving_piece) * oppo_moves.count() as isize;
-
     // Introduce some random variation to prevent repetition (AI chooses first move if multiple 'ideal' moves found)
-    //let rand = rand::random::<f32>();
-    //let rand = rand * 10.0;
-    value //+ rand as isize
+    let rand = rand::random::<f32>();
+    let rand = rand * 10.0;
+    value + rand as isize
 }
 
 fn piece_value(piece: Piece) -> isize {
