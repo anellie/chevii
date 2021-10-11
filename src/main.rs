@@ -4,7 +4,7 @@ extern crate test;
 
 use crate::graphics::Graphics;
 use crate::uci_engine::UCIEngine;
-use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES};
+use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES, BoardStatus};
 use structopt::StructOpt;
 
 pub mod ai;
@@ -90,11 +90,16 @@ impl System {
     }
 
     fn make_ai_move(&mut self) {
+        let pos = self.game.current_position();
+        if pos.status() == BoardStatus::Checkmate {
+            return;
+        }
+
         let to_make = if self.info.moves_count == 0 {
             // E5 as opening
             ChessMove::new(sq(52), sq(36), None)
         } else {
-            ai::get_best_move(&self.game.current_position())
+            ai::get_best_move(&pos)
         };
         self.game.make_move(to_make);
         self.info.last_move = Some(to_make);
