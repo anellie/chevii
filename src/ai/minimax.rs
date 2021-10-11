@@ -1,5 +1,5 @@
 use crate::ai::{evaluation, OPPONENT, PLAYER};
-use chess::{Board, BoardStatus, ChessMove, MoveGen};
+use chess::{Board, BoardStatus, ChessMove};
 use rayon::prelude::*;
 
 const DEPTH: usize = 6;
@@ -21,7 +21,21 @@ pub fn get_best_move(board: &Board) -> ChessMove {
         })
         .max_by_key(|(score, _)| *score)
         .unwrap();
-    println!("SELECTED MOVE: {} has score {} and evaluation {}, expecting {}", res.1, (res.0).0, evaluation::eval_move(board, res.1), (res.0).1.unwrap());
+
+    if let Some(expected) = (res.0).1 {
+        log::info!(
+            "Playing {} (score {}), expecting {}",
+            res.1,
+            (res.0).0,
+            expected
+        );
+    } else {
+        log::info!(
+            "Playing {} (score {}, checkmate)",
+            res.1,
+            (res.0).0
+        );
+    }
 
     res.1
 }

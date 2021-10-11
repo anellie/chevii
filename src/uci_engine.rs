@@ -14,8 +14,8 @@ pub struct UCIEngine {
 }
 
 impl UCIEngine {
-    pub fn new_stockfish() -> Self {
-        let mut sf = Command::new("stockfish")
+    pub fn new(name: &str) -> Self {
+        let mut sf = Command::new(name)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()

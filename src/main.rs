@@ -5,28 +5,42 @@ extern crate test;
 use crate::graphics::Graphics;
 use crate::uci_engine::UCIEngine;
 use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES};
-use std::env;
+use structopt::StructOpt;
 
 pub mod ai;
 mod graphics;
 mod uci_engine;
 
-fn main() {
-    let other_engine = env::args()
-        .find(|s| s == "--stockfish")
-        .map(|_| UCIEngine::new_stockfish());
-    let mut game = Game::new();
+#[derive(StructOpt, Debug)]
+struct Opt {
+    /// Have the AI play against an UCI engine
+    #[structopt(short, long)]
+    engine_path: Option<String>,
 
-    let bench = env::args().find(|s| s == "--bench").is_some();
-    if bench {
-        game.make_move(ChessMove::new(sq(12), sq(28), None)); // e2e4
-        game.make_move(ChessMove::new(sq(52), sq(36), None)); // e7e5
-        game.make_move(ChessMove::new(sq(6), sq(21), None)); // Ng1f5
-        let board = game.current_position();
-        ai::get_best_move(&board);
+    /// Run a single AI move calculation and exit
+    #[structopt(short, long)]
+    bench: bool,
+}
+
+fn main() {
+    env_logger::init();
+    let opts = Opt::from_args();
+
+    if opts.bench {
+        bench();
     } else {
-        System::start(game, other_engine);
+        let other_engine = opts.engine_path.map(|eng| UCIEngine::new(&eng));
+        System::start(Game::new(), other_engine);
     }
+}
+
+fn bench() {
+    let mut game = Game::new();
+    game.make_move(ChessMove::new(sq(12), sq(28), None)); // e2e4
+    game.make_move(ChessMove::new(sq(52), sq(36), None)); // e7e5
+    game.make_move(ChessMove::new(sq(6), sq(21), None)); // Ng1f5
+    let board = game.current_position();
+    ai::get_best_move(&board);
 }
 
 pub struct System {

@@ -1,5 +1,5 @@
-use crate::ai::{OPPONENT, PLAYER, PLAYER_PAWN_RANK_BITS, PLAYER_BACK_RANK};
-use chess::{Board, ALL_PIECES, NUM_PIECES, ChessMove, Piece, MoveGen, BitBoard, BoardStatus};
+use crate::ai::{OPPONENT, PLAYER, PLAYER_BACK_RANK, PLAYER_PAWN_RANK_BITS};
+use chess::{Board, ChessMove, MoveGen, Piece, ALL_PIECES, NUM_PIECES};
 use rayon::prelude::ParallelSliceMut;
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
@@ -41,13 +41,14 @@ pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
         value += (10 * piece_value(captured_piece)) - piece_value(moving_piece);
     }
 
-    let undeveloped_pawns_count = (board.color_combined(PLAYER) & board.pieces(Piece::Pawn) & PLAYER_PAWN_RANK_BITS).popcnt();
+    let undeveloped_pawns_count =
+        (board.color_combined(PLAYER) & board.pieces(Piece::Pawn) & PLAYER_PAWN_RANK_BITS).popcnt();
     let is_early_game = undeveloped_pawns_count >= 6;
     // Prioritize developing pawns earlygame
     if is_early_game && moving_piece == Piece::Pawn {
         let file = cmove.get_source().get_file().to_index();
         // Middle pawns first
-        value += (8 - isize::abs((file - 4) as isize)) * 20;
+        value += (8 - isize::abs(file as isize - 4)) * 20;
     }
 
     // Penalize moving a piece to the back rank to prevent 'undeveloping' pieces during earlygame
