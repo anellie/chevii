@@ -1,5 +1,5 @@
-use crate::ai::{evaluation, OPPONENT, PLAYER};
-use chess::{Board, BoardStatus, ChessMove};
+use crate::ai::{evaluation};
+use chess::{Board, BoardStatus, ChessMove, Color};
 use rayon::prelude::*;
 
 const DEPTH: usize = 6;
@@ -17,7 +17,7 @@ pub fn get_best_move(board: &Board) -> ChessMove {
         .into_par_iter()
         .map(|mov| {
             let clone = board.make_move_new(mov);
-            (minimax(&clone, depth - 1, -INF, INF), mov)
+            (minimax(&clone, depth - 1, board.side_to_move(), -INF, INF), mov)
         })
         .max_by_key(|(score, _)| *score)
         .unwrap();
@@ -41,7 +41,7 @@ pub fn get_best_move(board: &Board) -> ChessMove {
 }
 
 fn get_depth(board: &Board) -> usize {
-    if (board.color_combined(PLAYER).popcnt() + board.color_combined(OPPONENT).popcnt())
+    if (board.color_combined(Color::White).popcnt() + board.color_combined(Color::Black).popcnt())
         <= ENDGAME_THRESH
     {
         ENDGAME_DEPTH
@@ -53,11 +53,12 @@ fn get_depth(board: &Board) -> usize {
 fn minimax(
     board: &Board,
     depth: usize,
+    player: Color,
     mut alpha: isize,
     mut beta: isize,
 ) -> (isize, Option<ChessMove>) {
     match board.status() {
-        BoardStatus::Checkmate if board.side_to_move() == PLAYER => return (-WIN, None),
+        BoardStatus::Checkmate if board.side_to_move() == player => return (-WIN, None),
         BoardStatus::Checkmate => return (WIN, None),
         BoardStatus::Stalemate => return (-WIN / 2, None),
         BoardStatus::Ongoing if depth == 0 => return (evaluation::eval_board(board), None),
@@ -66,13 +67,13 @@ fn minimax(
 
     let moves = evaluation::sorted_moves(board);
     let mut tmp = board.clone();
-    if board.side_to_move() == PLAYER {
+    if board.side_to_move() == player {
         let mut max_score = -INF;
         let mut best_move = ChessMove::default();
 
         for mov in moves {
             board.make_move(mov, &mut tmp);
-            let (score, _) = minimax(&tmp, depth - 1, alpha, beta);
+            let (score, _) = minimax(&tmp, depth - 1, player, alpha, beta);
 
             max_score = isize::max(max_score, score);
             alpha = isize::max(alpha, max_score);
@@ -93,7 +94,7 @@ fn minimax(
 
         for mov in moves {
             board.make_move(mov, &mut tmp);
-            let (score, _) = minimax(&tmp, depth - 1, alpha, beta);
+            let (score, _) = minimax(&tmp, depth - 1, player, alpha, beta);
 
             min_score = isize::min(min_score, score);
             beta = isize::min(beta, min_score);
