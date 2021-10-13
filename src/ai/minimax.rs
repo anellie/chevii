@@ -50,7 +50,7 @@ fn get_depth(board: &Board) -> usize {
     }
 }
 
-fn minimax(
+fn minimax( 
     board: &Board,
     depth: usize,
     player: Color,
@@ -59,7 +59,7 @@ fn minimax(
 ) -> (isize, Option<ChessMove>) {
     match board.status() {
         BoardStatus::Checkmate if board.side_to_move() == player => return (-WIN, None),
-        BoardStatus::Checkmate => return (WIN, None),
+        BoardStatus::Checkmate => return (WIN + (WIN * depth) as isize, None),
         BoardStatus::Stalemate => return (-WIN / 2, None),
         BoardStatus::Ongoing if depth == 0 => return (evaluation::eval_board(board), None),
         _ => (),

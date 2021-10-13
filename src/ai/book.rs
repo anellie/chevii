@@ -14,14 +14,14 @@ pub fn get_for(board: &Board) -> Option<ChessMove> {
     let hash = board.get_hash();
     let movs = &BOOK.get(&(hash, board.side_to_move()))?;
 
-    let mut rand = thread_rng().gen_range(1..movs.1) as isize;
+    let mut rand = thread_rng().gen_range(0..movs.1) as isize;
     let mut index = 0;
     while rand > 0 {
         rand -= movs.0[index].0 as isize;
         index += 1;
     }
 
-    let mov_str = &movs.0[index - 1].1;
+    let mov_str = &movs.0[index].1;
     Some(ChessMove::from_san(board, mov_str).ok()?)
 }
 
