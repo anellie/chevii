@@ -104,14 +104,9 @@ impl System {
             return;
         }
 
-        let to_make = if self.info.moves_count == 0 {
-            // E5 as opening
-            ChessMove::new(sq(52), sq(36), None)
-        } else {
-            ai::get_best_move(&pos)
-        };
-        self.game.make_move(to_make);
-        self.info.last_move = Some(to_make);
+        let mov = ai::get_best_move(&pos);
+        self.game.make_move(mov);
+        self.info.last_move = Some(mov);
         self.info.moves_count += 1;
     }
 }

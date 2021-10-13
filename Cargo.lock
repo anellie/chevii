@@ -220,6 +220,7 @@ dependencies = [
  "arrayvec 0.7.1",
  "chess",
  "env_logger",
+ "lazy_static",
  "log",
  "rand 0.8.4",
  "rayon",

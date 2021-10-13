@@ -9,7 +9,7 @@ const ENDGAME_THRESH: u32 = 10;
 const INF: isize = 999999999999;
 const WIN: isize = 99999999;
 
-pub fn get_best_move(board: &Board) -> ChessMove {
+pub fn calculate_move(board: &Board) -> ChessMove {
     let moves = evaluation::sorted_moves(board);
     let depth = get_depth(board);
 

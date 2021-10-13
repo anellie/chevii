@@ -1,8 +1,16 @@
 mod evaluation;
 mod minimax;
+pub mod book;
 
-use chess::{BitBoard, Color, Rank, Board};
-pub use minimax::get_best_move;
+use chess::{BitBoard, Color, Rank, Board, ChessMove};
+
+pub fn get_best_move(board: &Board) -> ChessMove {
+    if let Some(mov) = book::get_for(board) {
+        mov
+    } else {
+        minimax::calculate_move(board)
+    }
+}
 
 fn get_player_back_rank(board: &Board) -> Rank {
     match board.side_to_move() {
