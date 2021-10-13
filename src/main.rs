@@ -4,8 +4,9 @@ extern crate test;
 
 use crate::graphics::Graphics;
 use crate::uci_engine::UCIEngine;
-use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES, BoardStatus};
+use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES, BoardStatus, Board};
 use structopt::StructOpt;
+use std::str::FromStr;
 
 pub mod ai;
 mod graphics;
@@ -20,6 +21,10 @@ struct Opt {
     /// Run a single AI move calculation and exit
     #[structopt(short, long)]
     bench: bool,
+
+    /// Produce a single move
+    #[structopt(short, long)]
+    position: Option<String>
 }
 
 fn main() {
@@ -28,6 +33,10 @@ fn main() {
 
     if opts.bench {
         bench();
+    } else if let Some(fen) = opts.position {
+        let board = Board::from_str(&fen).unwrap();
+        let mov = ai::get_best_move(&board);
+        println!("{}", mov);
     } else {
         let other_engine = opts.engine_path.map(|eng| UCIEngine::new(&eng));
         System::start(Game::new(), other_engine);
