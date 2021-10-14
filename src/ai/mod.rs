@@ -6,11 +6,11 @@ use chess::{BitBoard, Color, Rank, Board, ChessMove};
 
 type RatedMove = (ChessMove, isize);
 
-pub fn get_best_move(board: Board) -> ChessMove {
+pub fn get_best_move(board: Board, time: f32) -> ChessMove {
     if let Some(mov) = book::get_for(&board) {
         mov
     } else {
-        minimax::calculate_move(board)
+        minimax::calculate_move(board, time)
     }
 }
 

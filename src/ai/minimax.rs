@@ -1,10 +1,11 @@
 use crate::ai::{evaluation, RatedMove};
 use chess::{Board, BoardStatus, ChessMove, Color};
 use rayon::prelude::*;
+use std::thread;
+use std::time::{Duration, Instant};
+use std::sync::mpsc;
 
-const DEPTH: usize = 6;
-const ENDGAME_DEPTH: usize = 8;
-const ENDGAME_THRESH: u32 = 10;
+const START_DEPTH: usize = 4;
 
 const INF: isize = 999999999999;
 const WIN: isize = 99999999;
@@ -14,28 +15,61 @@ struct Suggestion {
     expected_move: Option<ChessMove>
 }
 
-pub fn calculate_move(board: Board) -> ChessMove {
-    let moves = evaluation::sorted_moves(&board);
-    let depth = get_depth(&board);
+pub fn calculate_move(board: Board, time: f32) -> ChessMove {
+    let mut suggest = Suggestion {
+        play: (Default::default(), 0),
+        expected_move: None
+    };
+    let mut moves = evaluation::sorted_moves(&board);
 
-    let res = calc_depth(board, depth, moves);
+    for iter_depth in 1..START_DEPTH {
+        let (s, m) = calc_depth(board, iter_depth, moves);
+        suggest = s;
+        moves = m;
+    }
 
-    if let Some(expected) = (res.0).expected_move {
+    let (suggest_tx, suggest_rx) = mpsc::channel();
+    let (stop_tx, stop_rx) = mpsc::channel();
+    let start_time = Instant::now();
+
+    thread::spawn(move || {
+        let mut depth = START_DEPTH;
+        while let Ok(false) = stop_rx.recv() {
+            let (s, m) = calc_depth(board, depth, moves);
+            moves = m;
+            suggest_tx.send(s).ok();
+            depth += 1;
+        }
+        log::info!("Reached depth {} with {} moves", depth, moves.len());
+    });
+
+    stop_tx.send(false).ok();
+    while start_time.elapsed().as_secs_f32() < time {
+        if let Ok(value) = suggest_rx.try_recv() {
+            stop_tx.send(false).ok();
+            suggest = value;
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
+    stop_tx.send(true).ok();
+    drop(stop_tx);
+
+    if let Some(expected) = suggest.expected_move {
         log::info!(
             "Playing {} (score {}), expecting {}",
-            res.0.play.0,
-            (res.0).play.1,
+            suggest.play.0,
+            suggest.play.1,
             expected
         );
     } else {
         log::info!(
             "Playing {} (score {}, checkmate)",
-            res.0.play.0,
-            (res.0).play.1,
+            suggest.play.0,
+            suggest.play.1,
         );
     }
 
-    res.0.play.0
+    suggest.play.0
 }
 
 fn calc_depth(board: Board, depth: usize, mut moves: Vec<RatedMove>) -> (Suggestion, Vec<RatedMove>) {
@@ -57,16 +91,6 @@ fn calc_depth(board: Board, depth: usize, mut moves: Vec<RatedMove>) -> (Suggest
     }, moves)
 }
 
-fn get_depth(board: &Board) -> usize {
-    if (board.color_combined(Color::White).popcnt() + board.color_combined(Color::Black).popcnt())
-        <= ENDGAME_THRESH
-    {
-        ENDGAME_DEPTH
-    } else {
-        DEPTH
-    }
-}
-
 fn minimax(
     board: &Board,
     depth: usize,
@@ -75,7 +99,7 @@ fn minimax(
     mut beta: isize,
 ) -> (isize, Option<ChessMove>) {
     match board.status() {
-        BoardStatus::Checkmate if board.side_to_move() == player => return (-WIN, None),
+        BoardStatus::Checkmate if board.side_to_move() == player => return (-(WIN + (depth * 1000) as isize), None),
         BoardStatus::Checkmate => return (WIN + (WIN * depth as isize), None),
         BoardStatus::Stalemate => return (-WIN / 2, None),
         BoardStatus::Ongoing if depth == 0 => return (evaluation::eval_board(board, player), None),

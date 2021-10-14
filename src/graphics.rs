@@ -26,7 +26,7 @@ pub struct Graphics {
 }
 
 impl System {
-    pub fn start(game: Game, other_engine: Option<UCIEngine>) {
+    pub fn start(game: Game, time: f32, other_engine: Option<UCIEngine>) {
         ContextBuilder::new("chessie", (8.0 * SCALE) as i32, (8.0 * SCALE) as i32)
             .quit_on_escape(true)
             .show_mouse(true)
@@ -39,6 +39,7 @@ impl System {
                         pieces: make_textures(&mut ctx),
                         draw_for: 5,
                     },
+                    time,
                     info: GameInfo::default(),
                     other_engine,
                 })

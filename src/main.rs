@@ -8,6 +8,7 @@ use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES, BoardStatus, B
 use structopt::StructOpt;
 use std::str::FromStr;
 use std::process;
+use rayon::ThreadPoolBuilder;
 
 pub mod ai;
 mod graphics;
@@ -25,23 +26,32 @@ struct Opt {
 
     /// Produce a single move
     #[structopt(short, long)]
-    position: Option<String>
+    position: Option<String>,
+
+    /// Number of threads to use
+    #[structopt(long, default_value = "8")]
+    threads: usize,
+
+    /// Time for thinking per move
+    #[structopt(short, long, default_value = "3")]
+    time: f32
 }
 
 fn main() {
     env_logger::init();
     let opts = Opt::from_args();
+    ThreadPoolBuilder::new().num_threads(opts.threads).build_global().unwrap();
 
     if opts.bench {
         bench();
     } else if let Some(fen) = opts.position {
         let board = Board::from_str(&fen).unwrap();
-        let mov = ai::get_best_move(board);
+        let mov = ai::get_best_move(board, opts.time);
         println!("{}", mov);
         process::exit(0);
     } else {
         let other_engine = opts.engine_path.map(|eng| UCIEngine::new(&eng));
-        System::start(Game::new(), other_engine);
+        System::start(Game::new(), opts.time, other_engine);
     }
 }
 
@@ -51,13 +61,14 @@ fn bench() {
     game.make_move(ChessMove::new(sq(52), sq(36), None)); // e7e5
     game.make_move(ChessMove::new(sq(6), sq(21), None)); // Ng1f5
     let board = game.current_position();
-    ai::get_best_move(board);
+    ai::get_best_move(board, 1.5);
     process::exit(0);
 }
 
 pub struct System {
     pub game: Game,
     pub gui: Graphics,
+    pub time: f32,
     pub info: GameInfo,
     pub other_engine: Option<UCIEngine>,
 }
@@ -107,7 +118,7 @@ impl System {
             return;
         }
 
-        let mov = ai::get_best_move(pos);
+        let mov = ai::get_best_move(pos, self.time);
         self.game.make_move(mov);
         self.info.last_move = Some(mov);
         self.info.moves_count += 1;
