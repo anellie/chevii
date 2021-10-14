@@ -4,8 +4,10 @@ pub mod book;
 
 use chess::{BitBoard, Color, Rank, Board, ChessMove};
 
-pub fn get_best_move(board: &Board) -> ChessMove {
-    if let Some(mov) = book::get_for(board) {
+type RatedMove = (ChessMove, isize);
+
+pub fn get_best_move(board: Board) -> ChessMove {
+    if let Some(mov) = book::get_for(&board) {
         mov
     } else {
         minimax::calculate_move(board)

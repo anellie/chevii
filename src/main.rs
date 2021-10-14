@@ -7,6 +7,7 @@ use crate::uci_engine::UCIEngine;
 use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES, BoardStatus, Board};
 use structopt::StructOpt;
 use std::str::FromStr;
+use std::process;
 
 pub mod ai;
 mod graphics;
@@ -35,8 +36,9 @@ fn main() {
         bench();
     } else if let Some(fen) = opts.position {
         let board = Board::from_str(&fen).unwrap();
-        let mov = ai::get_best_move(&board);
+        let mov = ai::get_best_move(board);
         println!("{}", mov);
+        process::exit(0);
     } else {
         let other_engine = opts.engine_path.map(|eng| UCIEngine::new(&eng));
         System::start(Game::new(), other_engine);
@@ -49,7 +51,8 @@ fn bench() {
     game.make_move(ChessMove::new(sq(52), sq(36), None)); // e7e5
     game.make_move(ChessMove::new(sq(6), sq(21), None)); // Ng1f5
     let board = game.current_position();
-    ai::get_best_move(&board);
+    ai::get_best_move(board);
+    process::exit(0);
 }
 
 pub struct System {
@@ -104,7 +107,7 @@ impl System {
             return;
         }
 
-        let mov = ai::get_best_move(&pos);
+        let mov = ai::get_best_move(pos);
         self.game.make_move(mov);
         self.info.last_move = Some(mov);
         self.info.moves_count += 1;
