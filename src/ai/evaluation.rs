@@ -28,6 +28,14 @@ pub(super) fn sorted_moves(board: &Board) -> Vec<RatedMove> {
     moves
 }
 
+pub(super) fn capturing_moves(board: &Board) -> Vec<RatedMove> {
+    let mut gen = MoveGen::new_legal(board);
+    gen.set_iterator_mask(*board.color_combined(!board.side_to_move()));
+    let mut moves = gen.map(|m| (m, eval_move(board, m))).collect::<Vec<_>>();
+    moves.par_sort_unstable_by_key(|mov| -mov.1);
+    moves
+}
+
 pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
     let mut value = 0;
     let moving_piece = board.piece_on(cmove.get_source()).unwrap();
@@ -78,11 +86,11 @@ fn consider_value(piece: Piece) -> isize {
 #[cfg(test)]
 mod tests {
     use super::eval_board;
-    use chess::Board;
+    use chess::{Board, Color};
 
     #[test]
     fn new_board_is_0() {
         let board = Board::default();
-        assert_eq!(eval_board(&board), 0);
+        assert_eq!(eval_board(&board, Color::Black), 0);
     }
 }

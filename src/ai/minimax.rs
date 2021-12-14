@@ -5,7 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::mpsc;
 
-const START_DEPTH: usize = 4;
+const START_DEPTH: isize = 4;
 
 const INF: isize = 999999999999;
 const WIN: isize = 99999999;
@@ -72,7 +72,7 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
     suggest.play.0
 }
 
-fn calc_depth(board: Board, depth: usize, mut moves: Vec<RatedMove>) -> (Suggestion, Vec<RatedMove>) {
+fn calc_depth(board: Board, depth: isize, mut moves: Vec<RatedMove>) -> (Suggestion, Vec<RatedMove>) {
     let res = moves
         .par_iter_mut()
         .map(|(mov, score)| {
@@ -93,20 +93,28 @@ fn calc_depth(board: Board, depth: usize, mut moves: Vec<RatedMove>) -> (Suggest
 
 fn minimax(
     board: &Board,
-    depth: usize,
+    depth: isize,
     player: Color,
     mut alpha: isize,
     mut beta: isize,
 ) -> (isize, Option<ChessMove>) {
-    match board.status() {
+    let moves = match board.status() {
         BoardStatus::Checkmate if board.side_to_move() == player => return (-(WIN + (depth * 1000) as isize), None),
         BoardStatus::Checkmate => return (WIN + (WIN * depth as isize), None),
         BoardStatus::Stalemate => return (-WIN / 2, None),
-        BoardStatus::Ongoing if depth == 0 => return (evaluation::eval_board(board, player), None),
-        _ => (),
-    }
 
-    let moves = evaluation::sorted_moves(board);
+        BoardStatus::Ongoing if depth <= 0 => {
+            let capture_moves = evaluation::capturing_moves(board);
+            if !capture_moves.is_empty() {
+                capture_moves
+            } else {
+                return (evaluation::eval_board(board, player), None);
+            }
+        },
+
+        _ => evaluation::sorted_moves(board),
+    };
+
     let mut tmp = board.clone();
     if board.side_to_move() == player {
         let mut max_score = -INF;
