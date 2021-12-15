@@ -2,31 +2,19 @@
 
 extern crate test;
 
-use crate::graphics::Graphics;
-use crate::uci_engine::UCIEngine;
-use chess::{ChessMove, Game, MoveGen, Piece, Square, ALL_SQUARES, BoardStatus, Board};
+use chess::Board;
 use structopt::StructOpt;
 use std::str::FromStr;
 use std::process;
 use rayon::ThreadPoolBuilder;
 
 pub mod ai;
-mod graphics;
-mod uci_engine;
 
 #[derive(StructOpt, Debug)]
 struct Opt {
-    /// Have the AI play against an UCI engine
-    #[structopt(short, long)]
-    engine_path: Option<String>,
-
-    /// Run a single AI move calculation and exit
-    #[structopt(short, long)]
-    bench: bool,
-
     /// Produce a single move
     #[structopt(short, long)]
-    position: Option<String>,
+    position: String,
 
     /// Number of threads to use
     #[structopt(long, default_value = "8")]
@@ -42,96 +30,8 @@ fn main() {
     let opts = Opt::from_args();
     ThreadPoolBuilder::new().num_threads(opts.threads).build_global().unwrap();
 
-    if opts.bench {
-        bench();
-    } else if let Some(fen) = opts.position {
-        let board = Board::from_str(&fen).unwrap();
-        let mov = ai::get_best_move(board, opts.time);
-        println!("{}", mov);
-        process::exit(0);
-    } else {
-        let other_engine = opts.engine_path.map(|eng| UCIEngine::new(&eng));
-        System::start(Game::new(), opts.time, other_engine);
-    }
-}
-
-fn bench() {
-    let mut game = Game::new();
-    game.make_move(ChessMove::new(sq(12), sq(28), None)); // e2e4
-    game.make_move(ChessMove::new(sq(52), sq(36), None)); // e7e5
-    game.make_move(ChessMove::new(sq(6), sq(21), None)); // Ng1f5
-    let board = game.current_position();
-    ai::get_best_move(board, 1.5);
+    let board = Board::from_str(&opts.position).unwrap();
+    let mov = ai::get_best_move(board, opts.time);
+    println!("{}", mov);
     process::exit(0);
-}
-
-pub struct System {
-    pub game: Game,
-    pub gui: Graphics,
-    pub time: f32,
-    pub info: GameInfo,
-    pub other_engine: Option<UCIEngine>,
-}
-
-impl System {
-    fn square_clicked(&mut self, square: usize) {
-        let board = self.game.current_position();
-
-        match self.info.selected_square {
-            Some(prev_square) if prev_square == square => {
-                self.info.selected_square = None;
-                return;
-            }
-
-            Some(prev_square) => {
-                let move_ = ChessMove::new(sq(prev_square), sq(square), None);
-                let move_promote = ChessMove::new(sq(prev_square), sq(square), Some(Piece::Queen));
-
-                let mut make_move = |m: ChessMove| {
-                    if board.legal(m) {
-                        self.game.make_move(m);
-                        self.make_ai_move();
-                        self.info.selected_square = None;
-                        self.info.moves_count += 1;
-                    }
-                };
-
-                make_move(move_);
-                make_move(move_promote);
-            }
-
-            _ => (),
-        }
-
-        if board.color_on(sq(square)) == Some(board.side_to_move()) {
-            self.info.selected_square = Some(square);
-        }
-    }
-
-    fn possible_moves(&mut self) -> MoveGen {
-        MoveGen::new_legal(&self.game.current_position())
-    }
-
-    fn make_ai_move(&mut self) {
-        let pos = self.game.current_position();
-        if pos.status() == BoardStatus::Checkmate {
-            return;
-        }
-
-        let mov = ai::get_best_move(pos, self.time);
-        self.game.make_move(mov);
-        self.info.last_move = Some(mov);
-        self.info.moves_count += 1;
-    }
-}
-
-#[derive(Default)]
-pub struct GameInfo {
-    pub last_move: Option<ChessMove>,
-    pub moves_count: usize,
-    pub selected_square: Option<usize>,
-}
-
-fn sq(idx: usize) -> Square {
-    ALL_SQUARES[idx]
 }
