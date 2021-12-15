@@ -1,62 +1,61 @@
+use crate::ai;
+use crate::ai::table::{Entry, TransTable};
 use crate::ai::{evaluation, RatedMove};
 use chess::{Board, BoardStatus, ChessMove, Color, EMPTY};
 use rayon::prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::{Duration, Instant};
-use std::sync::mpsc;
-use crate::ai::table::{TransTable, Entry};
 
 const INF: isize = 999999999999;
 const WIN: isize = 99999999;
 
 pub fn calculate_move(board: Board, time: f32) -> ChessMove {
-    let mut play = (Default::default(), 0);
-    let table = TransTable::new();
-    let mut moves = evaluation::sorted_moves(&board);
-
-    let (suggest_tx, suggest_rx) = mpsc::channel();
-    let (stop_tx, stop_rx) = mpsc::channel();
+    let mut cmove = ChessMove::default();
+    let (move_tx, move_rx) = mpsc::channel();
+    let run = AtomicBool::new(true);
     let start_time = Instant::now();
 
-    thread::spawn(move || {
-        let mut depth = 1;
-        while let Ok(false) = stop_rx.recv() {
-            let (s, m) = calc_depth(board, &table, depth, moves);
-            moves = m;
-            suggest_tx.send(s).ok();
-            depth += 1;
-            log::info!("Reached depth {} with {} moves in {}s", depth, moves.len(), start_time.elapsed().as_secs_f32());
-        }
-    });
+    thread::spawn(move || run_until_stopped(board, move_tx, &run));
 
-    stop_tx.send(false).ok();
     while start_time.elapsed().as_secs_f32() < time {
-        if let Ok(value) = suggest_rx.try_recv() {
-            stop_tx.send(false).ok();
-            play = value;
+        if let Ok(value) = move_rx.try_recv() {
+            cmove = value;
         }
         thread::sleep(Duration::from_millis(1));
     }
-    stop_tx.send(true).ok();
-    drop(stop_tx);
 
-    play.0
+    cmove
 }
 
-fn calc_depth(board: Board, table: &TransTable, depth: isize, mut moves: Vec<RatedMove>) -> (RatedMove, Vec<RatedMove>) {
-    let res = moves
-        .par_iter_mut()
-        .map(|(mov, score)| {
-            let clone = board.make_move_new(*mov);
-            let basic_score = minimax(&clone, table, depth - 1, board.side_to_move(), -INF, INF);
-            *score = basic_score + evaluation::eval_move(&board, *mov);
-            (*score, *mov)
-        })
-        .max_by_key(|(score, _)| *score)
-        .unwrap();
+fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool) {
+    let start_time = Instant::now();
+    let mut depth = 1;
+    let mut moves = ai::sorted_moves(&board);
+    let table = TransTable::new();
 
+    while run.load(Ordering::Relaxed) {
+        calc_depth(board, &table, depth, &mut moves);
+        move_tx.send(moves[0].0).ok();
+        depth += 1;
+        log::info!(
+            "Reached depth {} with {} moves in {}s",
+            depth,
+            moves.len(),
+            start_time.elapsed().as_secs_f32()
+        );
+        log::debug!("Best Move: {}", moves[0].0);
+    }
+}
+
+fn calc_depth(board: Board, table: &TransTable, depth: isize, moves: &mut Vec<RatedMove>) {
+    moves.par_iter_mut().for_each(|(mov, score)| {
+        let clone = board.make_move_new(*mov);
+        *score = minimax(&clone, table, depth - 1, board.side_to_move(), -INF, INF);
+    });
     moves.par_sort_unstable_by_key(|mov| -mov.1);
-    ((res.1, res.0), moves)
 }
 
 fn minimax(
@@ -75,20 +74,26 @@ fn minimax(
 
     // Kinda ugly but allows saving the expensive `board.status()` call on non-capture calls
     let moves = if depth <= 0 {
-        let moves = evaluation::capturing_moves(board);
+        let moves = ai::capturing_moves(board);
         match board.status() {
-            BoardStatus::Checkmate if board.side_to_move() == player => return -(WIN + ((depth + 1000) * 1000) as isize),
+            BoardStatus::Checkmate if board.side_to_move() == player => {
+                return -(WIN + ((depth + 1000) * 1000) as isize)
+            }
             BoardStatus::Checkmate => return WIN + (WIN * (depth + 1000) as isize),
             BoardStatus::Stalemate => return -WIN / 2,
-            BoardStatus::Ongoing if moves.len() == 0 => return evaluation::eval_board(board, player),
+            BoardStatus::Ongoing if moves.len() == 0 => {
+                return evaluation::eval_board(board, player)
+            }
             _ => moves,
         }
     } else {
-        let moves = evaluation::sorted_moves(board);
+        let moves = ai::sorted_moves(board);
         match moves.len() {
-            0 if board.checkers() != &EMPTY && board.side_to_move() == player => return -(WIN + (depth * 1000) as isize), // Lost
+            0 if board.checkers() != &EMPTY && board.side_to_move() == player => {
+                return -(WIN + (depth * 1000) as isize)
+            } // Lost
             0 if board.checkers() != &EMPTY => return WIN + (WIN * depth as isize), // Won
-            0 => return -WIN / 2, // Stalemate
+            0 => return -WIN / 2,                                                   // Stalemate
             _ => moves,
         }
     };
@@ -129,7 +134,7 @@ fn minimax(
     table.put(Entry {
         zobrist: hash,
         score: score as i32,
-        depth: depth as i32
+        depth: depth as i32,
     });
     score
 }

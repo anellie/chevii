@@ -3,10 +3,10 @@
 extern crate test;
 
 use chess::Board;
-use structopt::StructOpt;
-use std::str::FromStr;
-use std::process;
 use rayon::ThreadPoolBuilder;
+use std::process;
+use std::str::FromStr;
+use structopt::StructOpt;
 
 pub mod ai;
 
@@ -22,13 +22,16 @@ struct Opt {
 
     /// Time for thinking per move
     #[structopt(short, long, default_value = "3")]
-    time: f32
+    time: f32,
 }
 
 fn main() {
     env_logger::init();
     let opts = Opt::from_args();
-    ThreadPoolBuilder::new().num_threads(opts.threads).build_global().unwrap();
+    ThreadPoolBuilder::new()
+        .num_threads(opts.threads)
+        .build_global()
+        .unwrap();
 
     let board = Board::from_str(&opts.position).unwrap();
     let mov = ai::get_best_move(board, opts.time);

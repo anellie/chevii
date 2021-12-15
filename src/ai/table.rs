@@ -5,7 +5,7 @@ const MASK: usize = CAPACITY - 1;
 /// Can be used multi-threaded; however it does not handle hash collisions or proper synchronization.
 /// This is "safe".
 pub struct TransTable {
-    entries: Vec<Option<Entry>>
+    entries: Vec<Option<Entry>>,
 }
 
 impl TransTable {
@@ -32,7 +32,7 @@ impl TransTable {
 
     pub fn new() -> Self {
         Self {
-            entries: vec![None; CAPACITY]
+            entries: vec![None; CAPACITY],
         }
     }
 }
@@ -41,5 +41,5 @@ impl TransTable {
 pub struct Entry {
     pub zobrist: u64,
     pub score: i32,
-    pub depth: i32
+    pub depth: i32,
 }
