@@ -1,5 +1,5 @@
 use crate::ai::{evaluation, RatedMove};
-use chess::{Board, BoardStatus, ChessMove, Color};
+use chess::{Board, BoardStatus, ChessMove, Color, EMPTY};
 use rayon::prelude::*;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -73,21 +73,23 @@ fn minimax(
         _ => (),
     }
 
-    let moves = match board.status() {
-        BoardStatus::Checkmate if board.side_to_move() == player => return -(WIN + (depth * 1000) as isize),
-        BoardStatus::Checkmate => return WIN + (WIN * depth as isize),
-        BoardStatus::Stalemate => return -WIN / 2,
-
-        BoardStatus::Ongoing if depth <= 0 => {
-            let capture_moves = evaluation::capturing_moves(board);
-            if !capture_moves.is_empty() {
-                capture_moves
-            } else {
-                return evaluation::eval_board(board, player);
-            }
-        },
-
-        _ => evaluation::sorted_moves(board),
+    // Kinda ugly but allows saving the expensive `board.status()` call on non-capture calls
+    let moves = if depth <= 0 {
+        let moves = evaluation::capturing_moves(board);
+        match board.status() {
+            BoardStatus::Checkmate if board.side_to_move() == player => return -(WIN + (depth * 1000) as isize),
+            BoardStatus::Checkmate => return WIN + (WIN * depth as isize),
+            BoardStatus::Stalemate => return -WIN / 2,
+            _ => moves,
+        }
+    } else {
+        let moves = evaluation::sorted_moves(board);
+        match moves.len() {
+            0 if board.checkers() != &EMPTY && board.side_to_move() == player => return -(WIN + (depth * 1000) as isize), // Lost
+            0 if board.checkers() != &EMPTY => return WIN + (WIN * depth as isize), // Won
+            0 => return -WIN / 2, // Stalemate
+            _ => moves,
+        }
     };
 
     let mut tmp = board.clone();
