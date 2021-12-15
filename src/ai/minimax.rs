@@ -80,6 +80,7 @@ fn minimax(
             BoardStatus::Checkmate if board.side_to_move() == player => return -(WIN + (depth * 1000) as isize),
             BoardStatus::Checkmate => return WIN + (WIN * depth as isize),
             BoardStatus::Stalemate => return -WIN / 2,
+            BoardStatus::Ongoing if moves.len() == 0 => return evaluation::eval_board(board, player),
             _ => moves,
         }
     } else {
