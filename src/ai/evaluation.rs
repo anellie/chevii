@@ -2,6 +2,7 @@ use crate::ai::{get_player_back_rank, get_player_pawn_bits, RatedMove};
 use chess::{Board, ChessMove, MoveGen, Piece, ALL_PIECES, NUM_PIECES, Color};
 use rayon::prelude::ParallelSliceMut;
 use rand::{thread_rng, Rng};
+use chess::CastleRights::NoRights;
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
 const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
@@ -68,6 +69,15 @@ pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
 
     // Penalize developing the queen too early
     if undeveloped_pawns_count > 6 && moving_piece == Piece::Queen {
+        value -= 25;
+    }
+
+    // Penalize moving the king when castling is still possible
+    if moving_piece == Piece::King && board.my_castle_rights() != NoRights {
+        value -= 100;
+    }
+    // Penalize moving the king out of the back rank
+    if moving_piece == Piece::King && cmove.get_source().get_rank() == get_player_back_rank(board) {
         value -= 25;
     }
 
