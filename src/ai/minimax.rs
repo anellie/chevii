@@ -4,8 +4,7 @@ use rayon::prelude::*;
 use std::thread;
 use std::time::{Duration, Instant};
 use std::sync::mpsc;
-
-const START_DEPTH: isize = 4;
+use crate::ai::table::{TransTable, Entry};
 
 const INF: isize = 999999999999;
 const WIN: isize = 99999999;
@@ -20,27 +19,22 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
         play: (Default::default(), 0),
         expected_move: None
     };
+    let table = TransTable::new();
     let mut moves = evaluation::sorted_moves(&board);
-
-    for iter_depth in 1..START_DEPTH {
-        let (s, m) = calc_depth(board, iter_depth, moves);
-        suggest = s;
-        moves = m;
-    }
 
     let (suggest_tx, suggest_rx) = mpsc::channel();
     let (stop_tx, stop_rx) = mpsc::channel();
     let start_time = Instant::now();
 
     thread::spawn(move || {
-        let mut depth = START_DEPTH;
+        let mut depth = 1;
         while let Ok(false) = stop_rx.recv() {
-            let (s, m) = calc_depth(board, depth, moves);
+            let (s, m) = calc_depth(board, &table, depth, moves);
             moves = m;
             suggest_tx.send(s).ok();
             depth += 1;
+            log::info!("Reached depth {} with {} moves in {}s", depth, moves.len(), start_time.elapsed().as_secs_f32());
         }
-        log::info!("Reached depth {} with {} moves", depth, moves.len());
     });
 
     stop_tx.send(false).ok();
@@ -72,12 +66,12 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
     suggest.play.0
 }
 
-fn calc_depth(board: Board, depth: isize, mut moves: Vec<RatedMove>) -> (Suggestion, Vec<RatedMove>) {
+fn calc_depth(board: Board, table: &TransTable, depth: isize, mut moves: Vec<RatedMove>) -> (Suggestion, Vec<RatedMove>) {
     let res = moves
         .par_iter_mut()
         .map(|(mov, score)| {
             let clone = board.make_move_new(*mov);
-            let (basic_score, expected) = minimax(&clone, depth - 1, board.side_to_move(), -INF, INF);
+            let (basic_score, expected) = minimax(&clone, table, depth - 1, board.side_to_move(), -INF, INF);
             *score = basic_score + evaluation::eval_move(&board, *mov);
             ((*score, expected), *mov)
         })
@@ -93,11 +87,18 @@ fn calc_depth(board: Board, depth: isize, mut moves: Vec<RatedMove>) -> (Suggest
 
 fn minimax(
     board: &Board,
+    table: &TransTable,
     depth: isize,
     player: Color,
     mut alpha: isize,
     mut beta: isize,
 ) -> (isize, Option<ChessMove>) {
+    let hash = board.get_hash();
+    match table.get(hash) {
+        Some(entry) if entry.depth >= depth as i32 => return (entry.score as isize, None),
+        _ => (),
+    }
+
     let moves = match board.status() {
         BoardStatus::Checkmate if board.side_to_move() == player => return (-(WIN + (depth * 1000) as isize), None),
         BoardStatus::Checkmate => return (WIN + (WIN * depth as isize), None),
@@ -116,13 +117,13 @@ fn minimax(
     };
 
     let mut tmp = board.clone();
-    if board.side_to_move() == player {
+    let (score, mov) = if board.side_to_move() == player {
         let mut max_score = -INF;
         let mut best_move = ChessMove::default();
 
         for (mov, _) in moves {
             board.make_move(mov, &mut tmp);
-            let (score, _) = minimax(&tmp, depth - 1, player, alpha, beta);
+            let (score, _) = minimax(&tmp, table, depth - 1, player, alpha, beta);
 
             max_score = isize::max(max_score, score);
             alpha = isize::max(alpha, max_score);
@@ -143,7 +144,7 @@ fn minimax(
 
         for (mov, _) in moves {
             board.make_move(mov, &mut tmp);
-            let (score, _) = minimax(&tmp, depth - 1, player, alpha, beta);
+            let (score, _) = minimax(&tmp, table, depth - 1, player, alpha, beta);
 
             min_score = isize::min(min_score, score);
             beta = isize::min(beta, min_score);
@@ -158,5 +159,12 @@ fn minimax(
         }
 
         (min_score, Some(best_move))
-    }
+    };
+
+    table.put(Entry {
+        zobrist: hash,
+        score: score as i32,
+        depth: depth as i32
+    });
+    (score, mov)
 }
