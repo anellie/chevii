@@ -106,10 +106,6 @@ fn minimax(
             if beta <= alpha {
                 break;
             }
-
-            if score >= max_score {
-                max_score = score;
-            }
         }
 
         max_score
@@ -124,10 +120,6 @@ fn minimax(
             beta = isize::min(beta, min_score);
             if beta <= alpha {
                 break;
-            }
-
-            if score <= min_score {
-                min_score = score;
             }
         }
 
