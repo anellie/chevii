@@ -4,7 +4,7 @@ use rayon::prelude::ParallelSliceMut;
 use rand::{thread_rng, Rng};
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
-const CONSIDER_VALUE: [u32; NUM_PIECES] = [5, 15, 15, 25, 45, 9990];
+const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
 
 pub(super) fn eval_board(board: &Board, player: Color) -> isize {
     let mut total = 0;
