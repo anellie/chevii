@@ -12,7 +12,8 @@ const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
 const CASTLE_BONUS: i32 = 8;
 const CHECK_PENALTY: i32 = 15;
 
-pub(super) fn eval_board(board: &Board, player: Color) -> isize {
+pub(super) fn eval_board(board: &Board) -> isize {
+    let player = board.side_to_move();
     let player_eval = eval_all(board, player);
     let opponent_eval = eval_all(board, !player);
     (player_eval - opponent_eval) as isize

@@ -53,7 +53,7 @@ fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool)
 fn calc_depth(board: Board, table: &TransTable, depth: isize, moves: &mut Vec<RatedMove>) {
     moves.par_iter_mut().for_each(|(mov, score)| {
         let clone = board.make_move_new(*mov);
-        *score = minimax(&clone, table, depth - 1, board.side_to_move(), -INF, INF);
+        *score = -minimax(&clone, table, depth - 1, -INF, INF);
     });
     moves.par_sort_unstable_by_key(|mov| -mov.1);
 }
@@ -62,7 +62,6 @@ fn minimax(
     board: &Board,
     table: &TransTable,
     depth: isize,
-    player: Color,
     mut alpha: isize,
     mut beta: isize,
 ) -> isize {
@@ -76,65 +75,45 @@ fn minimax(
     let moves = if depth <= 0 {
         let moves = ai::capturing_moves(board);
         match board.status() {
-            BoardStatus::Checkmate if board.side_to_move() == player => {
-                return -(WIN + ((depth + 1000) * 1000) as isize)
-            }
-            BoardStatus::Checkmate => return WIN + (WIN * (depth + 1000) as isize),
+            BoardStatus::Checkmate => return -(WIN + ((depth + 1000) * 1000) as isize),
             BoardStatus::Stalemate => return -WIN / 2,
             BoardStatus::Ongoing if moves.len() == 0 => {
-                return evaluation::eval_board(board, player)
+                return evaluation::eval_board(board)
             }
             _ => moves,
         }
     } else {
         let moves = ai::sorted_moves(board);
         match moves.len() {
-            0 if board.checkers() != &EMPTY && board.side_to_move() == player => {
-                return -(WIN + (depth * 1000) as isize)
-            } // Lost
-            0 if board.checkers() != &EMPTY => return WIN + (WIN * depth as isize), // Won
-            0 => return -WIN / 2,                                                   // Stalemate
+            0 if board.checkers() != &EMPTY => return -(WIN + (depth * 1000) as isize),  // Lost
+            0 => return -WIN / 2, // Stalemate
             _ => moves,
         }
     };
 
     let mut tmp = board.clone();
-    let score = if board.side_to_move() == player {
-        let mut max_score = -INF;
+    for (mov, _) in moves {
+        board.make_move(mov, &mut tmp);
+        let score = -minimax(&tmp, table, depth - 1, -beta, -alpha);
 
-        for (mov, _) in moves {
-            board.make_move(mov, &mut tmp);
-            let score = minimax(&tmp, table, depth - 1, player, alpha, beta);
-
-            max_score = isize::max(max_score, score);
-            alpha = isize::max(alpha, max_score);
-            if beta <= alpha {
-                break;
-            }
+        if score >= beta {
+            table.put(Entry {
+                zobrist: hash,
+                score: score as i32,
+                depth: depth as i32,
+            });
+            return beta;
         }
 
-        max_score
-    } else {
-        let mut min_score = INF;
-
-        for (mov, _) in moves {
-            board.make_move(mov, &mut tmp);
-            let score = minimax(&tmp, table, depth - 1, player, alpha, beta);
-
-            min_score = isize::min(min_score, score);
-            beta = isize::min(beta, min_score);
-            if beta <= alpha {
-                break;
-            }
+        if score > alpha {
+            alpha = score;
         }
-
-        min_score
-    };
+    }
 
     table.put(Entry {
         zobrist: hash,
-        score: score as i32,
+        score: alpha as i32,
         depth: depth as i32,
     });
-    score
+    alpha
 }
