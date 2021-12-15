@@ -1,10 +1,9 @@
-use crate::ai::{get_player_back_rank, get_player_pawn_bits, RatedMove};
+use crate::ai::{get_player_back_rank, get_player_pawn_bits};
 use chess::CastleRights::NoRights;
 use chess::{
-    BitBoard, Board, CastleRights, ChessMove, Color, MoveGen, Piece, Square, ALL_PIECES, NUM_PIECES,
+    BitBoard, Board, CastleRights, ChessMove, Color, Piece, Square, ALL_PIECES, NUM_PIECES,
 };
 use rand::{thread_rng, Rng};
-use rayon::prelude::ParallelSliceMut;
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
 const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];

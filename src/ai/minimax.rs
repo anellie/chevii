@@ -1,7 +1,7 @@
 use crate::ai;
 use crate::ai::table::{Entry, TransTable};
 use crate::ai::{evaluation, RatedMove};
-use chess::{Board, BoardStatus, ChessMove, Color, EMPTY};
+use chess::{Board, ChessMove, EMPTY};
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -63,33 +63,24 @@ fn minimax(
     table: &TransTable,
     depth: isize,
     mut alpha: isize,
-    mut beta: isize,
+    beta: isize,
 ) -> isize {
+    if depth == 0 {
+        return explore_captures(board, alpha, beta);
+    }
+
     let hash = board.get_hash();
     match table.get(hash) {
         Some(entry) if entry.depth >= depth as i32 => return entry.score as isize,
         _ => (),
     }
 
-    // Kinda ugly but allows saving the expensive `board.status()` call on non-capture calls
-    let moves = if depth <= 0 {
-        let moves = ai::capturing_moves(board);
-        match board.status() {
-            BoardStatus::Checkmate => return -(WIN + ((depth + 1000) * 1000) as isize),
-            BoardStatus::Stalemate => return -WIN / 2,
-            BoardStatus::Ongoing if moves.len() == 0 => {
-                return evaluation::eval_board(board)
-            }
-            _ => moves,
-        }
-    } else {
-        let moves = ai::sorted_moves(board);
-        match moves.len() {
-            0 if board.checkers() != &EMPTY => return -(WIN + (depth * 1000) as isize),  // Lost
-            0 => return -WIN / 2, // Stalemate
-            _ => moves,
-        }
-    };
+    let moves = ai::sorted_moves(board);
+    match moves.len() {
+        0 if board.checkers() != &EMPTY => return -(WIN + (depth * 1000) as isize), // Lost
+        0 => return -WIN / 2,                                                       // Stalemate
+        _ => (),
+    }
 
     let mut tmp = board.clone();
     for (mov, _) in moves {
@@ -115,5 +106,32 @@ fn minimax(
         score: alpha as i32,
         depth: depth as i32,
     });
+    alpha
+}
+
+fn explore_captures(board: &Board, mut alpha: isize, beta: isize) -> isize {
+    let score = evaluation::eval_board(board);
+    if score >= beta {
+        return beta;
+    }
+    if score > alpha {
+        alpha = score;
+    }
+
+    let moves = ai::capturing_moves(board);
+    let mut tmp = board.clone();
+    for (mov, _) in moves {
+        board.make_move(mov, &mut tmp);
+        let score = -explore_captures(&tmp, -beta, -alpha);
+
+        if score >= beta {
+            return beta;
+        }
+
+        if score > alpha {
+            alpha = score;
+        }
+    }
+
     alpha
 }
