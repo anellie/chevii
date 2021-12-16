@@ -15,6 +15,6 @@ cxx = "1.0"
 cxx-build = "1.0"
 
 [profile.release]
-lto = true
+lto = "thin"
 panic = "abort"
 debug = true

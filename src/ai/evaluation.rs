@@ -1,5 +1,5 @@
 use crate::ai::statistics::Stat;
-use crate::ai::table::TransTable;
+use crate::ai::table::{NNUEEntry, TransTable};
 use crate::ai::{get_player_back_rank, get_player_pawn_bits, nnue};
 use chess::CastleRights::NoRights;
 use chess::{
@@ -11,8 +11,23 @@ const CONSIDER_VALUE: [i32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
 const CASTLE_BONUS: i32 = 8;
 const CHECK_PENALTY: i32 = 15;
 
-pub(super) fn eval_board(board: &Board) -> i32 {
-    nnue::eval(board)
+pub(super) fn eval_board(board: &Board, table: &TransTable) -> i32 {
+    let hash = board.get_hash();
+    match table.get_nnue(hash) {
+        Some(eval) => {
+            Stat::NNUECacheHits.inc();
+            eval.score
+        }
+        None => {
+            Stat::NNUECacheMisses.inc();
+            let score = nnue::eval(board);
+            table.put_nnue(NNUEEntry {
+                zobrist: hash,
+                score,
+            });
+            score
+        }
+    }
 }
 
 #[allow(unused)]
@@ -117,7 +132,7 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
     // We've had this move before during ID, so there's a very high chance it's good
     if let Some(entry) = table.get(applied.get_hash()) {
         Stat::TableEvalHits.inc();
-        value += 1000 * entry.depth_of_search as i32 * entry.depth_of_score as i32;
+        value += 1024 * entry.depth_of_search as i32 * entry.depth_of_score as i32;
     }
 
     // Checking is often a good idea

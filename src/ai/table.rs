@@ -6,14 +6,27 @@ const MASK: usize = CAPACITY - 1;
 /// This is "safe".
 pub struct TransTable {
     entries: Vec<Option<Entry>>,
+    entries_nnue: Vec<Option<NNUEEntry>>,
 }
 
 impl TransTable {
     pub fn get(&self, zobrist: u64) -> &Option<Entry> {
         let index = zobrist as usize & MASK;
         unsafe {
-            match self.entries.get_unchecked(index) {
-                Some(entry) if entry.zobrist == zobrist => self.entries.get_unchecked(index),
+            let val = self.entries.get_unchecked(index);
+            match val {
+                Some(entry) if entry.zobrist == zobrist => val,
+                _ => &None,
+            }
+        }
+    }
+
+    pub fn get_nnue(&self, zobrist: u64) -> &Option<NNUEEntry> {
+        let index = zobrist as usize & MASK;
+        unsafe {
+            let val = self.entries_nnue.get_unchecked(index);
+            match val {
+                Some(entry) if entry.zobrist == zobrist => val,
                 _ => &None,
             }
         }
@@ -30,9 +43,21 @@ impl TransTable {
         }
     }
 
+    pub fn put_nnue(&self, entry: NNUEEntry) {
+        let index = entry.zobrist as usize & MASK;
+        unsafe {
+            // Messing up safety one cast at a time!
+            let vec = &self.entries_nnue as *const Vec<Option<NNUEEntry>>;
+            let vecp = vec as *mut Vec<Option<NNUEEntry>>;
+            let vecmut = &mut *vecp;
+            vecmut[index] = Some(entry);
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             entries: vec![None; CAPACITY],
+            entries_nnue: vec![None; CAPACITY],
         }
     }
 }
@@ -43,4 +68,10 @@ pub struct Entry {
     pub score: i32,
     pub depth_of_score: i16,
     pub depth_of_search: i16,
+}
+
+#[derive(Clone)]
+pub struct NNUEEntry {
+    pub zobrist: u64,
+    pub score: i32,
 }

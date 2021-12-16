@@ -63,13 +63,18 @@ fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool)
 
 fn calc_depth(board: Board, table: &TransTable, depth: i16, moves: &mut Vec<RatedMove>) {
     if depth >= 4 {
-        moves.truncate(usize::max(5,moves.len() / 2));
+        moves.truncate(usize::max(5, moves.len() / 2));
     }
     moves.par_iter_mut().for_each(|(mov, score)| {
         let time = Instant::now();
         let clone = board.make_move_new(*mov);
         *score = -minimax(&clone, table, depth - 1, depth, -INF, INF);
-        log::trace!("Spent {}s on move {} at depth {}", time.elapsed().as_secs_f32(), mov, depth);
+        log::trace!(
+            "Spent {}s on move {} at depth {}",
+            time.elapsed().as_secs_f32(),
+            mov,
+            depth
+        );
     });
     moves.par_sort_unstable_by_key(|mov| -mov.1);
 }
@@ -120,7 +125,7 @@ fn minimax(
 
     table.put(Entry {
         zobrist: hash,
-        score: alpha as i32,
+        score: alpha,
         depth_of_score: depth,
         depth_of_search: total_depth,
     });
@@ -152,11 +157,6 @@ fn init_search(
     alpha: i32,
     beta: i32,
 ) -> Either<i32, (u64, Vec<RatedMove>)> {
-    if depth == 0 {
-        Stat::NodesEvaluated.inc();
-        return Either::Left(explore_captures(board, table, alpha, beta));
-    }
-
     let hash = board.get_hash();
     match table.get(hash) {
         Some(entry) if entry.depth_of_score >= depth => {
@@ -166,12 +166,17 @@ fn init_search(
         _ => Stat::TableMisses.inc(),
     }
 
+    if depth == 0 {
+        Stat::NodesEvaluated.inc();
+        return Either::Left(explore_captures(board, table, alpha, beta));
+    }
+
     let moves = ai::sorted_moves(board, &table);
     match moves.len() {
         0 if board.checkers() != &EMPTY => {
             // Lost
             Stat::CheckmatesFound.inc();
-            Either::Left(-(WIN + (depth as i32 * 1000)))
+            Either::Left(-(WIN + (depth as i32 * 1024)))
         }
         0 => Either::Left(-WIN / 2), // Stalemate
         _ => Either::Right((hash, moves)),
@@ -179,7 +184,7 @@ fn init_search(
 }
 
 fn explore_captures(board: &Board, table: &TransTable, mut alpha: i32, beta: i32) -> i32 {
-    let score = evaluation::eval_board(board);
+    let score = evaluation::eval_board(board, table);
     if score >= beta {
         return beta;
     }
