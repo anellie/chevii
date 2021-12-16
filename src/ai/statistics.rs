@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
-const LEN: usize = 6;
+const LEN: usize = 7;
 const EMPTY: AtomicU32 = AtomicU32::new(0);
 static STATS: [AtomicU32; LEN] = [EMPTY; LEN];
 static STATS_LAST_DEPTH: [AtomicU32; LEN] = [EMPTY; LEN];
@@ -15,6 +15,7 @@ pub enum Stat {
     CheckmatesFound = 3,
     BranchesCut = 4,
     PVMisses = 5,
+    TableEvalHits = 6,
 }
 
 impl Stat {
@@ -40,11 +41,15 @@ impl Stat {
     fn log_stats(stat: &[AtomicU32]) {
         log::debug!("   Nodes evaluated: {}", stat[0].load(Ordering::Relaxed));
         log::debug!(
-            "   Transposition table hits: {}",
+            "   Transposition table hits during move evaluation: {}",
             stat[1].load(Ordering::Relaxed)
         );
         log::debug!(
-            "   Transposition table misses: {}",
+            "   Transposition table hits during move ordering: {}",
+            stat[6].load(Ordering::Relaxed)
+        );
+        log::debug!(
+            "   Transposition table misses during move evaluation: {}",
             stat[2].load(Ordering::Relaxed)
         );
         log::debug!("   Checkmates found: {}", stat[3].load(Ordering::Relaxed));

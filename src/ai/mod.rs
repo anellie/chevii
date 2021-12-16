@@ -9,7 +9,7 @@ use crate::ai::table::TransTable;
 use chess::{BitBoard, Board, ChessMove, Color, MoveGen, Rank};
 use rayon::slice::ParallelSliceMut;
 
-type RatedMove = (ChessMove, isize);
+type RatedMove = (ChessMove, i32);
 
 /// Calculate the best possible move, using `time` amount of time.
 /// Actual time spent will be slightly higher (maybe about 100ms? unmeasured).

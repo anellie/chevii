@@ -41,5 +41,6 @@ impl TransTable {
 pub struct Entry {
     pub zobrist: u64,
     pub score: i32,
-    pub depth: i32,
+    pub depth_of_score: i16,
+    pub depth_of_search: i16,
 }

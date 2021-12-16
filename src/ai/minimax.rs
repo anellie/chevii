@@ -11,8 +11,8 @@ use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::{Duration, Instant};
 
-const INF: isize = 999999999999;
-const WIN: isize = 99999999;
+const INF: i32 = 999999999;
+const WIN: i32 = 999999;
 
 pub fn calculate_move(board: Board, time: f32) -> ChessMove {
     let mut cmove = ChessMove::default();
@@ -33,7 +33,7 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
 }
 
 #[cfg(test)]
-pub fn calculate_move_until_depth(board: Board, depth: isize) -> ChessMove {
+pub fn calculate_move_until_depth(board: Board, depth: i16) -> ChessMove {
     let table = TransTable::new();
     let mut moves = ai::sorted_moves(&board, &table);
     calc_depth(board, &table, depth, &mut moves);
@@ -61,10 +61,10 @@ fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool)
     }
 }
 
-fn calc_depth(board: Board, table: &TransTable, depth: isize, moves: &mut Vec<RatedMove>) {
+fn calc_depth(board: Board, table: &TransTable, depth: i16, moves: &mut Vec<RatedMove>) {
     moves.par_iter_mut().for_each(|(mov, score)| {
         let clone = board.make_move_new(*mov);
-        *score = -minimax(&clone, table, depth - 1, -INF, INF);
+        *score = -minimax(&clone, table, depth - 1, depth, -INF, INF);
     });
     moves.par_sort_unstable_by_key(|mov| -mov.1);
 }
@@ -72,10 +72,11 @@ fn calc_depth(board: Board, table: &TransTable, depth: isize, moves: &mut Vec<Ra
 fn minimax(
     board: &Board,
     table: &TransTable,
-    depth: isize,
-    mut alpha: isize,
-    beta: isize,
-) -> isize {
+    depth: i16,
+    total_depth: i16,
+    mut alpha: i32,
+    beta: i32,
+) -> i32 {
     let (hash, moves) = match init_search(board, table, depth, alpha, beta) {
         Either::Left(score) => return score,
         Either::Right(moves) => moves,
@@ -85,12 +86,12 @@ fn minimax(
     for (mov, _) in &moves {
         board.make_move(*mov, &mut tmp);
         let score = if *mov == moves[0].0 {
-            -minimax(&tmp, table, depth - 1, -beta, -alpha)
+            -minimax(&tmp, table, depth - 1, total_depth, -beta, -alpha)
         } else {
             let score = -scout_search(&tmp, table, depth - 1, -alpha);
             if alpha < score && score < beta {
                 Stat::PVMisses.inc();
-                -minimax(&tmp, table, depth - 1, -beta, -score)
+                -minimax(&tmp, table, depth - 1, total_depth, -beta, -score)
             } else {
                 score
             }
@@ -100,7 +101,8 @@ fn minimax(
             table.put(Entry {
                 zobrist: hash,
                 score: score as i32,
-                depth: depth as i32,
+                depth_of_score: depth,
+                depth_of_search: total_depth,
             });
             Stat::BranchesCut.inc();
             return beta;
@@ -114,12 +116,13 @@ fn minimax(
     table.put(Entry {
         zobrist: hash,
         score: alpha as i32,
-        depth: depth as i32,
+        depth_of_score: depth,
+        depth_of_search: total_depth,
     });
     alpha
 }
 
-fn scout_search(board: &Board, table: &TransTable, depth: isize, beta: isize) -> isize {
+fn scout_search(board: &Board, table: &TransTable, depth: i16, beta: i32) -> i32 {
     let (_, moves) = match init_search(board, table, depth, beta - 1, beta) {
         Either::Left(score) => return score,
         Either::Right(moves) => moves,
@@ -140,10 +143,10 @@ fn scout_search(board: &Board, table: &TransTable, depth: isize, beta: isize) ->
 fn init_search(
     board: &Board,
     table: &TransTable,
-    depth: isize,
-    alpha: isize,
-    beta: isize,
-) -> Either<isize, (u64, Vec<RatedMove>)> {
+    depth: i16,
+    alpha: i32,
+    beta: i32,
+) -> Either<i32, (u64, Vec<RatedMove>)> {
     if depth == 0 {
         Stat::NodesEvaluated.inc();
         return Either::Left(explore_captures(board, table, alpha, beta));
@@ -151,9 +154,9 @@ fn init_search(
 
     let hash = board.get_hash();
     match table.get(hash) {
-        Some(entry) if entry.depth >= depth as i32 => {
+        Some(entry) if entry.depth_of_score >= depth => {
             Stat::TableHits.inc();
-            return Either::Left(entry.score as isize);
+            return Either::Left(entry.score);
         }
         _ => Stat::TableMisses.inc(),
     }
@@ -163,14 +166,14 @@ fn init_search(
         0 if board.checkers() != &EMPTY => {
             // Lost
             Stat::CheckmatesFound.inc();
-            Either::Left(-(WIN + (depth * 1000) as isize))
+            Either::Left(-(WIN + (depth as i32 * 1000)))
         }
         0 => Either::Left(-WIN / 2), // Stalemate
         _ => Either::Right((hash, moves)),
     }
 }
 
-fn explore_captures(board: &Board, table: &TransTable, mut alpha: isize, beta: isize) -> isize {
+fn explore_captures(board: &Board, table: &TransTable, mut alpha: i32, beta: i32) -> i32 {
     let score = evaluation::eval_board(board);
     if score >= beta {
         return beta;

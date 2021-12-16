@@ -1,3 +1,4 @@
+use crate::ai::statistics::Stat;
 use crate::ai::table::TransTable;
 use crate::ai::{get_player_back_rank, get_player_pawn_bits, nnue};
 use chess::CastleRights::NoRights;
@@ -5,21 +6,21 @@ use chess::{
     BitBoard, Board, CastleRights, ChessMove, Color, Piece, Square, ALL_PIECES, NUM_PIECES,
 };
 
-const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
-const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
+const PIECE_VALUE: [i32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
+const CONSIDER_VALUE: [i32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
 const CASTLE_BONUS: i32 = 8;
 const CHECK_PENALTY: i32 = 15;
 
-pub(super) fn eval_board(board: &Board) -> isize {
-    nnue::eval(board) as isize
+pub(super) fn eval_board(board: &Board) -> i32 {
+    nnue::eval(board)
 }
 
 #[allow(unused)]
-pub(super) fn eval_static(board: &Board) -> isize {
+pub(super) fn eval_static(board: &Board) -> i32 {
     let player = board.side_to_move();
     let player_eval = eval_all(board, player);
     let opponent_eval = eval_all(board, !player);
-    (player_eval - opponent_eval) as isize
+    (player_eval - opponent_eval)
 }
 
 fn eval_all(board: &Board, player: Color) -> i32 {
@@ -67,7 +68,7 @@ fn eval_bishop(board: &Board, player: Color) -> i32 {
     ((board.color_combined(player) & board.pieces(Piece::Bishop)).popcnt() > 1) as i32 * 20
 }
 
-pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> isize {
+pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> i32 {
     let mut value = 0;
     let moving_piece = board.piece_on(cmove.get_source()).unwrap();
     let captured_piece = board.piece_on(cmove.get_dest());
@@ -79,7 +80,10 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
 
     // Capture highest-value opponent pieces with lowest-value pieces first
     if let Some(captured_piece) = captured_piece {
-        value += isize::max(10, (2 * consider_value(captured_piece)) - consider_value(moving_piece));
+        value += i32::max(
+            10,
+            (2 * consider_value(captured_piece)) - consider_value(moving_piece),
+        );
     }
 
     let undeveloped_pawns_count = (board.color_combined(board.side_to_move())
@@ -91,7 +95,7 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
     if is_early_game && moving_piece == Piece::Pawn {
         let file = cmove.get_source().get_file().to_index();
         // Middle pawns first
-        value += (8 - isize::abs(file as isize - 4)) * 10;
+        value += (8 - i32::abs(file as i32 - 4)) * 10;
     }
 
     // Penalize moving a piece to the back rank to prevent 'undeveloping' pieces during earlygame
@@ -111,8 +115,9 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
 
     let applied = board.make_move_new(cmove);
     // We've had this move before during ID, so there's a very high chance it's good
-    if table.get(applied.get_hash()).is_some() {
-        value += 10000;
+    if let Some(entry) = table.get(applied.get_hash()) {
+        Stat::TableEvalHits.inc();
+        value += 1000 * entry.depth_of_search as i32 * entry.depth_of_score as i32;
     }
 
     // Checking is often a good idea
@@ -123,12 +128,12 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
     value
 }
 
-fn piece_value(piece: Piece) -> isize {
-    PIECE_VALUE[piece.to_index()] as isize
+fn piece_value(piece: Piece) -> i32 {
+    PIECE_VALUE[piece.to_index()]
 }
 
-fn consider_value(piece: Piece) -> isize {
-    CONSIDER_VALUE[piece.to_index()] as isize
+fn consider_value(piece: Piece) -> i32 {
+    CONSIDER_VALUE[piece.to_index()]
 }
 
 fn get_king_adjacent_squares(pos: Square) -> BitBoard {
