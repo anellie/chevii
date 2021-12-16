@@ -3,7 +3,6 @@ use chess::CastleRights::NoRights;
 use chess::{
     BitBoard, Board, CastleRights, ChessMove, Color, Piece, Square, ALL_PIECES, NUM_PIECES,
 };
-use rand::{thread_rng, Rng};
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
 const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
@@ -112,8 +111,7 @@ pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
         value -= 25;
     }
 
-    // Introduce some random variation to prevent repetition (AI chooses first move if multiple 'ideal' moves found)
-    value + thread_rng().gen_range(0..5)
+    value
 }
 
 fn piece_value(piece: Piece) -> isize {
@@ -144,12 +142,6 @@ mod tests {
     use chess::{Board};
     use std::str::FromStr;
     use test::Bencher;
-
-    #[test]
-    fn new_board_is_0() {
-        let board = Board::default();
-        assert_eq!(eval_board(&board), 0);
-    }
 
     #[bench]
     fn bench_static_eval(b: &mut Bencher) {
