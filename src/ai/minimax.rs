@@ -55,6 +55,7 @@ fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool)
             start_time.elapsed().as_secs_f32()
         );
         log::debug!("Best Move: {}", moves[0].0);
+        Stat::next_depth();
     }
 }
 
