@@ -79,7 +79,7 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
 
     // Capture highest-value opponent pieces with lowest-value pieces first
     if let Some(captured_piece) = captured_piece {
-        value += (10 * consider_value(captured_piece)) - consider_value(moving_piece);
+        value += isize::max(10, (2 * consider_value(captured_piece)) - consider_value(moving_piece));
     }
 
     let undeveloped_pawns_count = (board.color_combined(board.side_to_move())
@@ -106,12 +106,18 @@ pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> 
 
     // Penalize moving the king when castling is still possible
     if moving_piece == Piece::King && board.my_castle_rights() != NoRights {
-        value -= 100;
+        value -= 25;
     }
 
     let applied = board.make_move_new(cmove);
+    // We've had this move before during ID, so there's a very high chance it's good
     if table.get(applied.get_hash()).is_some() {
         value += 10000;
+    }
+
+    // Checking is often a good idea
+    if applied.checkers().0 != 0 {
+        value += 50;
     }
 
     value

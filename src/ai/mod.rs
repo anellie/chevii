@@ -11,6 +11,8 @@ use rayon::slice::ParallelSliceMut;
 
 type RatedMove = (ChessMove, isize);
 
+/// Calculate the best possible move, using `time` amount of time.
+/// Actual time spent will be slightly higher (maybe about 100ms? unmeasured).
 pub fn get_best_move(board: Board, time: f32) -> ChessMove {
     nnue::init();
     let mov = minimax::calculate_move(board, time);
@@ -18,6 +20,7 @@ pub fn get_best_move(board: Board, time: f32) -> ChessMove {
     mov
 }
 
+/// Sorts all possible moves by their basic evaluation. (best first)
 fn sorted_moves(board: &Board, table: &TransTable) -> Vec<RatedMove> {
     let gen = MoveGen::new_legal(board);
     let mut moves = gen
@@ -27,6 +30,7 @@ fn sorted_moves(board: &Board, table: &TransTable) -> Vec<RatedMove> {
     moves
 }
 
+/// Sorts all capturing moves by their basic evaluation. (best first)
 fn capturing_moves(board: &Board, table: &TransTable) -> Vec<RatedMove> {
     let mut gen = MoveGen::new_legal(board);
     gen.set_iterator_mask(*board.color_combined(!board.side_to_move()));
