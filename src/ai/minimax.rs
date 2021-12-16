@@ -1,4 +1,5 @@
 use crate::ai;
+use crate::ai::statistics::Stat;
 use crate::ai::table::{Entry, TransTable};
 use crate::ai::{evaluation, RatedMove};
 use chess::{Board, ChessMove, EMPTY};
@@ -28,6 +29,13 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
     }
 
     cmove
+}
+
+pub fn calculate_move_until_depth(board: Board, depth: isize) -> ChessMove {
+    let table = TransTable::new();
+    let mut moves = ai::sorted_moves(&board);
+    calc_depth(board, &table, depth, &mut moves);
+    moves[0].0
 }
 
 fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool) {
@@ -66,19 +74,27 @@ fn minimax(
     beta: isize,
 ) -> isize {
     if depth == 0 {
+        Stat::NodesEvaluated.inc();
         return explore_captures(board, alpha, beta);
     }
 
     let hash = board.get_hash();
     match table.get(hash) {
-        Some(entry) if entry.depth >= depth as i32 => return entry.score as isize,
-        _ => (),
+        Some(entry) if entry.depth >= depth as i32 => {
+            Stat::TableHits.inc();
+            return entry.score as isize;
+        }
+        _ => Stat::TableMisses.inc(),
     }
 
     let moves = ai::sorted_moves(board);
     match moves.len() {
-        0 if board.checkers() != &EMPTY => return -(WIN + (depth * 1000) as isize), // Lost
-        0 => return -WIN / 2,                                                       // Stalemate
+        0 if board.checkers() != &EMPTY => {
+            // Lost
+            Stat::CheckmatesFound.inc();
+            return -(WIN + (depth * 1000) as isize);
+        }
+        0 => return -WIN / 2, // Stalemate
         _ => (),
     }
 
@@ -93,6 +109,7 @@ fn minimax(
                 score: score as i32,
                 depth: depth as i32,
             });
+            Stat::BranchesCut.inc();
             return beta;
         }
 
@@ -125,6 +142,7 @@ fn explore_captures(board: &Board, mut alpha: isize, beta: isize) -> isize {
         let score = -explore_captures(&tmp, -beta, -alpha);
 
         if score >= beta {
+            Stat::BranchesCut.inc();
             return beta;
         }
 
@@ -134,4 +152,20 @@ fn explore_captures(board: &Board, mut alpha: isize, beta: isize) -> isize {
     }
 
     alpha
+}
+
+#[cfg(test)]
+mod tests {
+    use super::calculate_move_until_depth;
+    use chess::Board;
+    use std::str::FromStr;
+    use test::Bencher;
+
+    #[bench]
+    fn bench_depth_3(b: &mut Bencher) {
+        let board =
+            Board::from_str("r1bqk2r/ppp2pp1/2n2n2/3Pp2p/2P5/P2P1N2/2P2PPP/R1BQKB1R b KQkq - 0 8")
+                .unwrap();
+        b.iter(|| calculate_move_until_depth(board, 3));
+    }
 }

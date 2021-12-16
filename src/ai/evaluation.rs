@@ -139,7 +139,7 @@ mod tests {
     use super::eval_board;
     use crate::ai::evaluation::eval_static;
     use crate::ai::nnue;
-    use chess::{Board};
+    use chess::Board;
     use std::str::FromStr;
     use test::Bencher;
 
