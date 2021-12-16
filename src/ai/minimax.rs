@@ -42,14 +42,13 @@ pub fn calculate_move_until_depth(board: Board, depth: i16) -> ChessMove {
 
 fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool) {
     let start_time = Instant::now();
-    let mut depth = 1;
+    let mut depth = 2;
     let table = TransTable::new();
     let mut moves = ai::sorted_moves(&board, &table);
 
     while run.load(Ordering::Relaxed) {
         calc_depth(board, &table, depth, &mut moves);
         move_tx.send(moves[0].0).ok();
-        depth += 1;
         log::info!(
             "Reached depth {} with {} moves in {}s",
             depth,
@@ -57,14 +56,20 @@ fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool)
             start_time.elapsed().as_secs_f32()
         );
         log::debug!("Best Move: {}", moves[0].0);
+        depth += 1;
         Stat::next_depth();
     }
 }
 
 fn calc_depth(board: Board, table: &TransTable, depth: i16, moves: &mut Vec<RatedMove>) {
+    if depth >= 4 {
+        moves.truncate(usize::max(5,moves.len() / 2));
+    }
     moves.par_iter_mut().for_each(|(mov, score)| {
+        let time = Instant::now();
         let clone = board.make_move_new(*mov);
         *score = -minimax(&clone, table, depth - 1, depth, -INF, INF);
+        log::trace!("Spent {}s on move {} at depth {}", time.elapsed().as_secs_f32(), mov, depth);
     });
     moves.par_sort_unstable_by_key(|mov| -mov.1);
 }
