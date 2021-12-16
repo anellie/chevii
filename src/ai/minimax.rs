@@ -32,6 +32,7 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
     cmove
 }
 
+#[cfg(test)]
 pub fn calculate_move_until_depth(board: Board, depth: isize) -> ChessMove {
     let table = TransTable::new();
     let mut moves = ai::sorted_moves(&board, &table);

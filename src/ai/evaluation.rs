@@ -14,6 +14,7 @@ pub(super) fn eval_board(board: &Board) -> isize {
     nnue::eval(board) as isize
 }
 
+#[allow(unused)]
 pub(super) fn eval_static(board: &Board) -> isize {
     let player = board.side_to_move();
     let player_eval = eval_all(board, player);
