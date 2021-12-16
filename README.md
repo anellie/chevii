@@ -4,6 +4,7 @@ A chess AI written in Rust.
 ## Features
 - Based on the [`chess` crate](https://lib.rs/chess) (Board representation and move generation)
 - Negamax with AB pruning
+- PVS with zero window search
 - Quiescence Search
 - Iterative Deepening
 - Transposition Table

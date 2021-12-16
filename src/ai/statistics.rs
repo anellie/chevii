@@ -1,10 +1,11 @@
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
+const LEN: usize = 6;
 const EMPTY: AtomicU32 = AtomicU32::new(0);
-static STATS: [AtomicU32; 5] = [EMPTY; 5];
-static STATS_LAST_DEPTH: [AtomicU32; 5] = [EMPTY; 5];
-static STATS_THIS_DEPTH: [AtomicU32; 5] = [EMPTY; 5];
+static STATS: [AtomicU32; LEN] = [EMPTY; LEN];
+static STATS_LAST_DEPTH: [AtomicU32; LEN] = [EMPTY; LEN];
+static STATS_THIS_DEPTH: [AtomicU32; LEN] = [EMPTY; LEN];
 
 #[derive(Copy, Clone)]
 pub enum Stat {
@@ -13,6 +14,7 @@ pub enum Stat {
     TableMisses = 2,
     CheckmatesFound = 3,
     BranchesCut = 4,
+    PVMisses = 5,
 }
 
 impl Stat {
@@ -47,5 +49,6 @@ impl Stat {
         );
         log::debug!("   Checkmates found: {}", stat[3].load(Ordering::Relaxed));
         log::debug!("   Branches pruned: {}", stat[4].load(Ordering::Relaxed));
+        log::debug!("   Incorrect PV moves: {}", stat[5].load(Ordering::Relaxed));
     }
 }

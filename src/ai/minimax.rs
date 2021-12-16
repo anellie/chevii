@@ -3,6 +3,7 @@ use crate::ai::statistics::Stat;
 use crate::ai::table::{Entry, TransTable};
 use crate::ai::{evaluation, RatedMove};
 use chess::{Board, ChessMove, EMPTY};
+use rayon::iter::Either;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -74,35 +75,25 @@ fn minimax(
     mut alpha: isize,
     beta: isize,
 ) -> isize {
-    if depth == 0 {
-        Stat::NodesEvaluated.inc();
-        return explore_captures(board, table, alpha, beta);
-    }
-
-    let hash = board.get_hash();
-    match table.get(hash) {
-        Some(entry) if entry.depth >= depth as i32 => {
-            Stat::TableHits.inc();
-            return entry.score as isize;
-        }
-        _ => Stat::TableMisses.inc(),
-    }
-
-    let moves = ai::sorted_moves(board, &table);
-    match moves.len() {
-        0 if board.checkers() != &EMPTY => {
-            // Lost
-            Stat::CheckmatesFound.inc();
-            return -(WIN + (depth * 1000) as isize);
-        }
-        0 => return -WIN / 2, // Stalemate
-        _ => (),
-    }
+    let (hash, moves) = match init_search(board, table, depth, alpha, beta) {
+        Either::Left(score) => return score,
+        Either::Right(moves) => moves,
+    };
 
     let mut tmp = board.clone();
-    for (mov, _) in moves {
-        board.make_move(mov, &mut tmp);
-        let score = -minimax(&tmp, table, depth - 1, -beta, -alpha);
+    for (mov, _) in &moves {
+        board.make_move(*mov, &mut tmp);
+        let score = if *mov == moves[0].0 {
+            -minimax(&tmp, table, depth - 1, -beta, -alpha)
+        } else {
+            let score = -scout_search(&tmp, table, depth - 1, -alpha);
+            if alpha < score && score < beta {
+                Stat::PVMisses.inc();
+                -minimax(&tmp, table, depth - 1, -beta, -score)
+            } else {
+                score
+            }
+        };
 
         if score >= beta {
             table.put(Entry {
@@ -127,6 +118,57 @@ fn minimax(
     alpha
 }
 
+fn scout_search(board: &Board, table: &TransTable, depth: isize, beta: isize) -> isize {
+    let (_, moves) = match init_search(board, table, depth, beta - 1, beta) {
+        Either::Left(score) => return score,
+        Either::Right(moves) => moves,
+    };
+
+    let mut tmp = board.clone();
+    for (mov, _) in &moves {
+        board.make_move(*mov, &mut tmp);
+        let score = -scout_search(&tmp, table, depth - 1, 1 - beta);
+        if score >= beta {
+            return beta;
+        }
+    }
+
+    beta - 1
+}
+
+fn init_search(
+    board: &Board,
+    table: &TransTable,
+    depth: isize,
+    alpha: isize,
+    beta: isize,
+) -> Either<isize, (u64, Vec<RatedMove>)> {
+    if depth == 0 {
+        Stat::NodesEvaluated.inc();
+        return Either::Left(explore_captures(board, table, alpha, beta));
+    }
+
+    let hash = board.get_hash();
+    match table.get(hash) {
+        Some(entry) if entry.depth >= depth as i32 => {
+            Stat::TableHits.inc();
+            return Either::Left(entry.score as isize);
+        }
+        _ => Stat::TableMisses.inc(),
+    }
+
+    let moves = ai::sorted_moves(board, &table);
+    match moves.len() {
+        0 if board.checkers() != &EMPTY => {
+            // Lost
+            Stat::CheckmatesFound.inc();
+            Either::Left(-(WIN + (depth * 1000) as isize))
+        }
+        0 => Either::Left(-WIN / 2), // Stalemate
+        _ => Either::Right((hash, moves)),
+    }
+}
+
 fn explore_captures(board: &Board, table: &TransTable, mut alpha: isize, beta: isize) -> isize {
     let score = evaluation::eval_board(board);
     if score >= beta {
@@ -138,9 +180,19 @@ fn explore_captures(board: &Board, table: &TransTable, mut alpha: isize, beta: i
 
     let moves = ai::capturing_moves(board, &table);
     let mut tmp = board.clone();
-    for (mov, _) in moves {
-        board.make_move(mov, &mut tmp);
-        let score = -explore_captures(&tmp, table, -beta, -alpha);
+    for (mov, _) in &moves {
+        board.make_move(*mov, &mut tmp);
+        let score = if *mov == moves[0].0 {
+            -explore_captures(&tmp, table, -beta, -alpha)
+        } else {
+            let score = -explore_captures(&tmp, table, -alpha - 1, -alpha);
+            if alpha < score && score < beta {
+                Stat::PVMisses.inc();
+                -explore_captures(&tmp, table, -beta, -score)
+            } else {
+                score
+            }
+        };
 
         if score >= beta {
             Stat::BranchesCut.inc();
