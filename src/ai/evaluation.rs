@@ -1,3 +1,4 @@
+use crate::ai::table::TransTable;
 use crate::ai::{get_player_back_rank, get_player_pawn_bits, nnue};
 use chess::CastleRights::NoRights;
 use chess::{
@@ -65,19 +66,19 @@ fn eval_bishop(board: &Board, player: Color) -> i32 {
     ((board.color_combined(player) & board.pieces(Piece::Bishop)).popcnt() > 1) as i32 * 20
 }
 
-pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
+pub(super) fn eval_move(board: &Board, table: &TransTable, cmove: ChessMove) -> isize {
     let mut value = 0;
     let moving_piece = board.piece_on(cmove.get_source()).unwrap();
     let captured_piece = board.piece_on(cmove.get_dest());
 
     // Promoting is often good
     if let Some(promoted) = cmove.get_promotion() {
-        value += consider_value(promoted);
+        value += 5 * consider_value(promoted);
     }
 
     // Capture highest-value opponent pieces with lowest-value pieces first
     if let Some(captured_piece) = captured_piece {
-        value += (2 * consider_value(captured_piece)) - consider_value(moving_piece);
+        value += (10 * consider_value(captured_piece)) - consider_value(moving_piece);
     }
 
     let undeveloped_pawns_count = (board.color_combined(board.side_to_move())
@@ -106,9 +107,10 @@ pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
     if moving_piece == Piece::King && board.my_castle_rights() != NoRights {
         value -= 100;
     }
-    // Penalize moving the king out of the back rank
-    if moving_piece == Piece::King && cmove.get_source().get_rank() == get_player_back_rank(board) {
-        value -= 25;
+
+    let applied = board.make_move_new(cmove);
+    if table.get(applied.get_hash()).is_some() {
+        value += 10000;
     }
 
     value

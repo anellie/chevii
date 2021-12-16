@@ -33,7 +33,7 @@ pub fn calculate_move(board: Board, time: f32) -> ChessMove {
 
 pub fn calculate_move_until_depth(board: Board, depth: isize) -> ChessMove {
     let table = TransTable::new();
-    let mut moves = ai::sorted_moves(&board);
+    let mut moves = ai::sorted_moves(&board, &table);
     calc_depth(board, &table, depth, &mut moves);
     moves[0].0
 }
@@ -41,8 +41,8 @@ pub fn calculate_move_until_depth(board: Board, depth: isize) -> ChessMove {
 fn run_until_stopped(board: Board, move_tx: Sender<ChessMove>, run: &AtomicBool) {
     let start_time = Instant::now();
     let mut depth = 1;
-    let mut moves = ai::sorted_moves(&board);
     let table = TransTable::new();
+    let mut moves = ai::sorted_moves(&board, &table);
 
     while run.load(Ordering::Relaxed) {
         calc_depth(board, &table, depth, &mut moves);
@@ -76,7 +76,7 @@ fn minimax(
 ) -> isize {
     if depth == 0 {
         Stat::NodesEvaluated.inc();
-        return explore_captures(board, alpha, beta);
+        return explore_captures(board, table, alpha, beta);
     }
 
     let hash = board.get_hash();
@@ -88,7 +88,7 @@ fn minimax(
         _ => Stat::TableMisses.inc(),
     }
 
-    let moves = ai::sorted_moves(board);
+    let moves = ai::sorted_moves(board, &table);
     match moves.len() {
         0 if board.checkers() != &EMPTY => {
             // Lost
@@ -127,7 +127,7 @@ fn minimax(
     alpha
 }
 
-fn explore_captures(board: &Board, mut alpha: isize, beta: isize) -> isize {
+fn explore_captures(board: &Board, table: &TransTable, mut alpha: isize, beta: isize) -> isize {
     let score = evaluation::eval_board(board);
     if score >= beta {
         return beta;
@@ -136,11 +136,11 @@ fn explore_captures(board: &Board, mut alpha: isize, beta: isize) -> isize {
         alpha = score;
     }
 
-    let moves = ai::capturing_moves(board);
+    let moves = ai::capturing_moves(board, &table);
     let mut tmp = board.clone();
     for (mov, _) in moves {
         board.make_move(mov, &mut tmp);
-        let score = -explore_captures(&tmp, -beta, -alpha);
+        let score = -explore_captures(&tmp, table, -beta, -alpha);
 
         if score >= beta {
             Stat::BranchesCut.inc();

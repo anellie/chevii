@@ -12,7 +12,7 @@ pub enum Stat {
     TableHits = 1,
     TableMisses = 2,
     CheckmatesFound = 3,
-    BranchesCut = 4
+    BranchesCut = 4,
 }
 
 impl Stat {

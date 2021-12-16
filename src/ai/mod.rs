@@ -5,6 +5,7 @@ mod statistics;
 mod table;
 
 use crate::ai::statistics::Stat;
+use crate::ai::table::TransTable;
 use chess::{BitBoard, Board, ChessMove, Color, MoveGen, Rank};
 use rayon::slice::ParallelSliceMut;
 
@@ -17,20 +18,20 @@ pub fn get_best_move(board: Board, time: f32) -> ChessMove {
     mov
 }
 
-fn sorted_moves(board: &Board) -> Vec<RatedMove> {
+fn sorted_moves(board: &Board, table: &TransTable) -> Vec<RatedMove> {
     let gen = MoveGen::new_legal(board);
     let mut moves = gen
-        .map(|m| (m, evaluation::eval_move(board, m)))
+        .map(|m| (m, evaluation::eval_move(board, table, m)))
         .collect::<Vec<_>>();
     moves.par_sort_unstable_by_key(|mov| -mov.1);
     moves
 }
 
-fn capturing_moves(board: &Board) -> Vec<RatedMove> {
+fn capturing_moves(board: &Board, table: &TransTable) -> Vec<RatedMove> {
     let mut gen = MoveGen::new_legal(board);
     gen.set_iterator_mask(*board.color_combined(!board.side_to_move()));
     let mut moves = gen
-        .map(|m| (m, evaluation::eval_move(board, m)))
+        .map(|m| (m, evaluation::eval_move(board, table, m)))
         .collect::<Vec<_>>();
     moves.par_sort_unstable_by_key(|mov| -mov.1);
     moves
