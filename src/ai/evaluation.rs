@@ -1,4 +1,4 @@
-use crate::ai::{get_player_back_rank, get_player_pawn_bits};
+use crate::ai::{get_player_back_rank, get_player_pawn_bits, nnue};
 use chess::CastleRights::NoRights;
 use chess::{
     BitBoard, Board, CastleRights, ChessMove, Color, Piece, Square, ALL_PIECES, NUM_PIECES,
@@ -7,11 +7,14 @@ use rand::{thread_rng, Rng};
 
 const PIECE_VALUE: [u32; NUM_PIECES] = [100, 300, 300, 500, 900, 99900];
 const CONSIDER_VALUE: [u32; NUM_PIECES] = [20, 60, 60, 100, 250, 9990];
-
 const CASTLE_BONUS: i32 = 8;
 const CHECK_PENALTY: i32 = 15;
 
 pub(super) fn eval_board(board: &Board) -> isize {
+    nnue::eval(board) as isize
+}
+
+pub(super) fn eval_static(board: &Board) -> isize {
     let player = board.side_to_move();
     let player_eval = eval_all(board, player);
     let opponent_eval = eval_all(board, !player);
@@ -23,7 +26,6 @@ fn eval_all(board: &Board, player: Color) -> i32 {
         + eval_castling(board, player)
         + eval_king(board, player)
         + eval_bishop(board, player)
-        + eval_pawns(board, player)
 }
 
 fn eval_material(board: &Board, player: Color) -> i32 {
@@ -62,11 +64,6 @@ fn eval_king(board: &Board, player: Color) -> i32 {
 
 fn eval_bishop(board: &Board, player: Color) -> i32 {
     ((board.color_combined(player) & board.pieces(Piece::Bishop)).popcnt() > 1) as i32 * 20
-}
-
-fn eval_pawns(board: &Board, player: Color) -> i32 {
-    let score = 0;
-    score
 }
 
 pub(super) fn eval_move(board: &Board, cmove: ChessMove) -> isize {
@@ -130,23 +127,44 @@ fn consider_value(piece: Piece) -> isize {
 fn get_king_adjacent_squares(pos: Square) -> BitBoard {
     let s = pos.left().unwrap_or_else(|| pos.right().unwrap());
     BitBoard::from_square(pos.left().unwrap_or(s))
-        & BitBoard::from_square(pos.right().unwrap_or(s))
-        & BitBoard::from_square(pos.up().unwrap_or(s))
-        & BitBoard::from_square(pos.down().unwrap_or(s))
-        & BitBoard::from_square(pos.left().map(|s| s.up()).flatten().unwrap_or(s))
-        & BitBoard::from_square(pos.right().map(|s| s.down()).flatten().unwrap_or(s))
-        & BitBoard::from_square(pos.up().map(|s| s.right()).flatten().unwrap_or(s))
-        & BitBoard::from_square(pos.down().map(|s| s.left()).flatten().unwrap_or(s))
+        | BitBoard::from_square(pos.right().unwrap_or(s))
+        | BitBoard::from_square(pos.up().unwrap_or(s))
+        | BitBoard::from_square(pos.down().unwrap_or(s))
+        | BitBoard::from_square(pos.left().map(|s| s.up()).flatten().unwrap_or(s))
+        | BitBoard::from_square(pos.right().map(|s| s.down()).flatten().unwrap_or(s))
+        | BitBoard::from_square(pos.up().map(|s| s.right()).flatten().unwrap_or(s))
+        | BitBoard::from_square(pos.down().map(|s| s.left()).flatten().unwrap_or(s))
 }
 
 #[cfg(test)]
 mod tests {
     use super::eval_board;
-    use chess::{Board, Color};
+    use crate::ai::evaluation::eval_static;
+    use crate::ai::nnue;
+    use chess::{Board};
+    use std::str::FromStr;
+    use test::Bencher;
 
     #[test]
     fn new_board_is_0() {
         let board = Board::default();
-        assert_eq!(eval_board(&board, Color::Black), 0);
+        assert_eq!(eval_board(&board), 0);
+    }
+
+    #[bench]
+    fn bench_static_eval(b: &mut Bencher) {
+        let board =
+            Board::from_str("r1bqk2r/ppp2pp1/2n2n2/3Pp2p/2P5/P2P1N2/2P2PPP/R1BQKB1R b KQkq - 0 8")
+                .unwrap();
+        b.iter(|| eval_static(&board));
+    }
+
+    #[bench]
+    fn bench_nnue_eval(b: &mut Bencher) {
+        let board =
+            Board::from_str("r1bqk2r/ppp2pp1/2n2n2/3Pp2p/2P5/P2P1N2/2P2PPP/R1BQKB1R b KQkq - 0 8")
+                .unwrap();
+        nnue::init();
+        b.iter(|| eval_board(&board));
     }
 }

@@ -1,5 +1,6 @@
 mod evaluation;
 mod minimax;
+mod nnue;
 mod table;
 
 use chess::{BitBoard, Board, ChessMove, Color, MoveGen, Rank};
@@ -8,6 +9,7 @@ use rayon::slice::ParallelSliceMut;
 type RatedMove = (ChessMove, isize);
 
 pub fn get_best_move(board: Board, time: f32) -> ChessMove {
+    nnue::init();
     minimax::calculate_move(board, time)
 }
 
